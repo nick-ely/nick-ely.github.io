@@ -61,7 +61,7 @@
   .card:hover::before, .card:hover::after, .card:focus-visible::before, .card:focus-visible::after { opacity:1; }
 
   .art { height:150px; margin:-6px -6px 22px; display:grid; place-items:center; }
-  .art svg { width:100%; height:100%; overflow:visible; }
+  .art svg { height:150px; width:auto; max-width:100%; overflow:visible; }
   .tag { font-size:11px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); }
   .card h2 { font-family:Fraunces, Georgia, serif; font-weight:800; font-size:clamp(28px,3.2vw,36px); line-height:1.05; letter-spacing:-.02em; margin:8px 0 10px; }
   .card p { color:var(--muted); margin:0 0 26px; }
@@ -81,6 +81,17 @@
   .silk { animation:wave 2.2s ease-in-out infinite alternate; transform-origin:150px 75px; }
   @keyframes wave { to { transform:skewY(-6deg) scaleX(.94); } }
 
+
+  .card a.main { color:inherit; text-decoration:none; }
+  .card a.main::after { content:""; position:absolute; inset:0; z-index:1; border-radius:inherit; }
+  .card a.main:focus-visible { outline:none; }
+  .card:focus-within { border-color:transparent; box-shadow:0 30px 80px -30px color-mix(in srgb, var(--accent) 55%, transparent); }
+  .card:focus-within::before, .card:focus-within::after { opacity:1; }
+  .admin { position:relative; z-index:2; display:inline-flex; align-items:center; gap:8px; padding:9px 16px; border-radius:999px; font-size:13px; font-weight:700; letter-spacing:.04em;
+    color:var(--ink); text-decoration:none; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.04); transition:background .2s, border-color .2s, color .2s; }
+  .admin .key { color:var(--accent); font-size:15px; line-height:1; }
+  .admin:hover, .admin:focus-visible { background:var(--accent); border-color:var(--accent); color:#0b0a08; outline:none; }
+  .admin:hover .key, .admin:focus-visible .key { color:#0b0a08; }
   footer { margin-top:64px; display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; color:var(--muted); font-size:13px; border-top:1px solid var(--line); padding-top:22px; }
   footer b { color:var(--ink); font-weight:500; }
 
@@ -97,17 +108,17 @@
   <p class="lede">The volunteer sites behind Edgewood's concessions crews and its winter guard contest. Pick yours.</p>
 
   <div class="grid">
-    <a class="card" href="https://edgewood-volunteers.github.io/" target="_blank" rel="noopener">
+    <article class="card">
       <div class="art" aria-hidden="true">
         <svg viewBox="0 0 300 150" id="hubart"></svg>
       </div>
       <span class="tag">IU concessions</span>
-      <h2>Edgewood Volunteer Hub</h2>
+      <h2><a class="main" href="https://edgewood-volunteers.github.io/" target="_blank" rel="noopener">Edgewood Volunteer Hub</a></h2>
       <p>Your shifts, hours and paperwork in one place. Grab an open spot at IU games, graduation and the Auditorium.</p>
-      <div class="cta"><span class="url">edgewood-volunteers.github.io</span><span class="arrow">→</span></div>
-    </a>
+      <div class="cta"><a class="admin" href="https://edgewood-volunteers.github.io/?view=admin" target="_blank" rel="noopener"><span class="key">⚿</span> Admin sign-in</a><span class="arrow">→</span></div>
+    </article>
 
-    <a class="card" href="https://edgewood-wg-comp.github.io/" target="_blank" rel="noopener">
+    <article class="card">
       <div class="art" aria-hidden="true">
         <svg viewBox="0 0 300 150">
           <defs>
@@ -123,10 +134,10 @@
         </svg>
       </div>
       <span class="tag">Winter guard</span>
-      <h2>SOS Crew – Edgewood Showcase of Spins</h2>
+      <h2><a class="main" href="https://edgewood-wg-comp.github.io/" target="_blank" rel="noopener">SOS Crew – Edgewood Showcase of Spins</a></h2>
       <p>Volunteer sign-up for the Edgewood winter guard contest. Pick a job and help run the show.</p>
       <div class="cta"><span class="url">edgewood-wg-comp.github.io</span><span class="arrow">→</span></div>
-    </a>
+    </article>
   </div>
 
   <footer><span>Designed &amp; built by <b>Nick Ely</b></span><span>© 2026 NE Prints &amp; Design, LLC</span></footer>
