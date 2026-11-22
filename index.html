@@ -102,6 +102,7 @@
 
   .qrrow { margin-top:26px; display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
   .qrrow span { color:var(--muted); font-size:14px; margin-right:4px; }
+  .qrbtn.share { position:absolute; top:18px; left:18px; z-index:2; padding:8px 14px; font-size:13px; }
   .qrbtn { display:inline-flex; align-items:center; gap:10px; padding:12px 20px; border-radius:999px; font:700 14px Inter, sans-serif; color:var(--ink); cursor:pointer;
     border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.05); backdrop-filter:blur(12px); transition:background .2s, border-color .2s, transform .2s; }
   .qrbtn:hover, .qrbtn:focus-visible { border-color:var(--c); background:color-mix(in srgb, var(--c) 18%, transparent); transform:translateY(-1px); outline:none; }
@@ -133,6 +134,7 @@
 
   <div class="grid">
     <article class="card">
+      <button class="qrbtn share" data-qr="hub" style="--c:var(--gold)" aria-label="Share the Volunteer Hub QR code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/></svg> Share</button>
       <div class="art" aria-hidden="true">
         <svg viewBox="0 0 300 150" id="hubart"></svg>
       </div>
@@ -143,6 +145,7 @@
     </article>
 
     <article class="card">
+      <button class="qrbtn share" data-qr="sos" style="--c:var(--violet)" aria-label="Share the SOS Crew QR code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/></svg> Share</button>
       <div class="art" aria-hidden="true">
         <svg viewBox="0 0 300 150">
           <defs>
@@ -164,10 +167,6 @@
     </article>
   </div>
 
-  <div class="qrrow"><span>Show a sign-up QR:</span>
-    <button class="qrbtn" data-qr="hub" style="--c:var(--gold)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/></svg> Volunteer Hub</button>
-    <button class="qrbtn" data-qr="sos" style="--c:var(--violet)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/></svg> SOS Crew</button>
-  </div>
 
   <footer><span>Designed &amp; built by <b>Nick Ely</b></span><span>© 2026 NE Prints &amp; Design, LLC</span></footer>
 </main>
