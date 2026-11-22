@@ -28,6 +28,30 @@
   ],
   "shortcuts": [
     {
+      "name": "Find a volunteer",
+      "short_name": "Find",
+      "url": "/find-volunteer.html",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Hub tools",
+      "short_name": "Hub tools",
+      "url": "/hub-tools.html",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
       "name": "Hub admin",
       "short_name": "Hub admin",
       "url": "/hub-admin.html",

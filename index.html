@@ -99,6 +99,23 @@
   .admin .key { color:var(--accent); font-size:15px; line-height:1; }
   .admin:hover, .admin:focus-visible { background:var(--accent); border-color:var(--accent); color:#0b0a08; outline:none; }
   .admin:hover .key, .admin:focus-visible .key { color:#0b0a08; }
+
+  .qrrow { margin-top:26px; display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+  .qrrow span { color:var(--muted); font-size:14px; margin-right:4px; }
+  .qrbtn { display:inline-flex; align-items:center; gap:10px; padding:12px 20px; border-radius:999px; font:700 14px Inter, sans-serif; color:var(--ink); cursor:pointer;
+    border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.05); backdrop-filter:blur(12px); transition:background .2s, border-color .2s, transform .2s; }
+  .qrbtn:hover, .qrbtn:focus-visible { border-color:var(--c); background:color-mix(in srgb, var(--c) 18%, transparent); transform:translateY(-1px); outline:none; }
+  .qrbtn svg { width:18px; height:18px; color:var(--c); }
+  .qrfull { position:fixed; inset:0; z-index:50; display:none; flex-direction:column; align-items:center; justify-content:center; gap:22px; padding:24px;
+    background:radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--c) 35%, #07080d), #07080d 70%); }
+  .qrfull.on { display:flex; animation:pop .35s cubic-bezier(.2,.7,.2,1); }
+  @keyframes pop { from { opacity:0; transform:scale(.96); } }
+  .qrfull .tag { color:var(--c); }
+  .qrfull h3 { margin:0; font-family:Fraunces, Georgia, serif; font-weight:800; font-size:clamp(28px,6vw,44px); text-align:center; line-height:1.05; }
+  .qrbox { background:#fff; padding:clamp(16px,4vw,26px); border-radius:28px; width:min(78vw, 62vh, 440px); aspect-ratio:1; box-shadow:0 30px 90px -20px color-mix(in srgb, var(--c) 70%, transparent); }
+  .qrbox img { width:100%; height:100%; display:block; image-rendering:pixelated; }
+  .qrfull .u { color:var(--muted); font-size:15px; }
+  .qrfull .x { color:var(--muted); font-size:13px; letter-spacing:.12em; text-transform:uppercase; }
   footer { margin-top:64px; display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; color:var(--muted); font-size:13px; border-top:1px solid var(--line); padding-top:22px; }
   footer b { color:var(--ink); font-weight:500; }
 
@@ -147,8 +164,21 @@
     </article>
   </div>
 
+  <div class="qrrow"><span>Show a sign-up QR:</span>
+    <button class="qrbtn" data-qr="hub" style="--c:var(--gold)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/></svg> Volunteer Hub</button>
+    <button class="qrbtn" data-qr="sos" style="--c:var(--violet)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/></svg> SOS Crew</button>
+  </div>
+
   <footer><span>Designed &amp; built by <b>Nick Ely</b></span><span>© 2026 NE Prints &amp; Design, LLC</span></footer>
 </main>
+
+<div class="qrfull" id="qrfull" role="dialog" aria-modal="true" aria-label="Sign-up QR code" tabindex="-1">
+  <span class="tag" id="qrtag"></span>
+  <h3 id="qrtitle"></h3>
+  <div class="qrbox"><img id="qrimg" alt=""></div>
+  <div class="u" id="qrurl"></div>
+  <div class="x">Tap anywhere to close</div>
+</div>
 
 <script>
   // Hub art: a little calendar of shifts lighting up
@@ -172,6 +202,24 @@
     });
     el.addEventListener('pointerleave', function () { el.style.setProperty('--rx', '0deg'); el.style.setProperty('--ry', '0deg'); });
   });
+
+  // Sign-up QR, full screen (keeps the screen awake while it's up, where the phone allows)
+  var QR = { hub: { c:'var(--gold)', tag:'IU concessions', t:'Edgewood Volunteer Hub', u:'edgewood-volunteers.github.io' },
+             sos: { c:'var(--violet)', tag:'Winter guard', t:'SOS Crew – Showcase of Spins', u:'edgewood-wg-comp.github.io' } };
+  var qf = document.getElementById('qrfull'), lock = null;
+  document.querySelectorAll('[data-qr]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.getAttribute('data-qr'), q = QR[k];
+      qf.style.setProperty('--c', q.c); document.getElementById('qrtag').textContent = q.tag; document.getElementById('qrtitle').textContent = q.t;
+      document.getElementById('qrurl').textContent = q.u; var im = document.getElementById('qrimg'); im.src = 'qr/' + k + '.svg'; im.alt = 'QR code for ' + q.u;
+      qf.classList.add('on'); qf.focus(); history.pushState({ qr: k }, '');
+      try { navigator.wakeLock && navigator.wakeLock.request('screen').then(function (l) { lock = l; }).catch(function () {}); } catch (e) {}
+    });
+  });
+  function qrClose() { qf.classList.remove('on'); try { lock && lock.release(); } catch (e) {} lock = null; }
+  qf.addEventListener('click', function () { if (history.state && history.state.qr) history.back(); else qrClose(); });
+  window.addEventListener('popstate', qrClose);   // Android back button closes it
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && qf.classList.contains('on')) qf.click(); });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
 </script>
 </body>
