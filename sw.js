@@ -1,5 +1,5 @@
 // Edgewood Volunteer Sites: caches this links page so the app opens offline. The Hub and SOS Crew are separate sites and aren't cached here.
-const CACHE = 'nick-ely-v6';
+const CACHE = 'nick-ely-v7';
 const FILES = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png', '/favicon-32.png', '/qr/hub.svg', '/qr/sos.svg'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== CACHE).map(x => caches.delete(x))))); self.clients.claim(); });

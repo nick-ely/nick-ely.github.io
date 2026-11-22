@@ -118,6 +118,8 @@
   .qrfull .u { color:var(--muted); font-size:15px; }
   .qrfull .x { color:var(--muted); font-size:13px; letter-spacing:.12em; text-transform:uppercase; }
 
+  [hidden] { display:none !important; }
+  .card.open ~ .card { grid-column:1 / -1; }
   .keybtn { cursor:pointer; font-family:Inter, sans-serif; }
   .keybtn .chev { display:inline-block; transition:transform .3s; font-size:11px; }
   .card.open .keybtn .chev { transform:rotate(180deg); }
