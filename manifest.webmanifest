@@ -28,9 +28,9 @@
   ],
   "shortcuts": [
     {
-      "name": "Find a volunteer",
-      "short_name": "Find",
-      "url": "/find-volunteer.html",
+      "name": "Game day",
+      "short_name": "Game day",
+      "url": "/game-day.html",
       "icons": [
         {
           "src": "icon-192.png",
@@ -40,9 +40,9 @@
       ]
     },
     {
-      "name": "Hub tools",
-      "short_name": "Hub tools",
-      "url": "/hub-tools.html",
+      "name": "Find a volunteer",
+      "short_name": "Find",
+      "url": "/find-volunteer.html",
       "icons": [
         {
           "src": "icon-192.png",
