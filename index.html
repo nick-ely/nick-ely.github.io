@@ -118,9 +118,14 @@
   .qrfull .u { color:var(--muted); font-size:15px; }
   .qrfull .x { color:var(--muted); font-size:13px; letter-spacing:.12em; text-transform:uppercase; }
 
-  .keys { margin:0 0 clamp(36px,6vh,60px); padding:22px; border-radius:26px; border:1px solid rgba(244,196,48,.3); background:linear-gradient(160deg, rgba(244,196,48,.08), rgba(255,255,255,.02)); backdrop-filter:blur(16px); }
-  .khead { display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; margin-bottom:16px; }
-  .khead .small { color:var(--muted); font-size:13px; }
+  .keybtn { cursor:pointer; font-family:Inter, sans-serif; }
+  .keybtn .chev { display:inline-block; transition:transform .3s; font-size:11px; }
+  .card.open .keybtn .chev { transform:rotate(180deg); }
+  .card.open { grid-column:1 / -1; transform:none !important; }
+  .card.open .arrow { display:none; }
+  .drawer { position:relative; z-index:2; margin-top:18px; animation:drop .35s cubic-bezier(.2,.7,.2,1); }
+  @keyframes drop { from { opacity:0; transform:translateY(-8px); } }
+  .dnote { margin:0 0 12px !important; font-size:13px; }
   .kfind { display:flex; gap:8px; margin-bottom:14px; }
   .kfind input { flex:1; min-width:0; min-height:50px; padding:0 16px; border-radius:14px; border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.35); color:var(--ink); font:16px Inter, sans-serif; }
   .kfind input:focus { outline:none; border-color:var(--gold); }
@@ -141,11 +146,6 @@
 <div class="grain" aria-hidden="true"></div><div class="vignette" aria-hidden="true"></div>
 
 <main class="wrap">
-  <section class="keys" id="keys" hidden>
-    <div class="khead"><span class="kicker"><i></i>Skeleton key</span><span class="small">Warp zones: straight to the screen, nothing else loads.</span></div>
-    <form class="kfind" id="kfind"><input id="kq" type="search" placeholder="Find a volunteer: name, email or phone" autocomplete="off" enterkeyhint="go"><button>Go</button></form>
-    <div class="warps"><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&day=today" target="_blank" rel="noopener"><b>Game day</b><span>Every game today</span></a><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&tool=logs" target="_blank" rel="noopener"><b>Approve stand logs</b><span>Time sheets waiting</span></a><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&tool=review" target="_blank" rel="noopener"><b>Paperwork review</b><span>Documents to check</span></a><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&ms=1" target="_blank" rel="noopener"><b>Manage stands</b><span>Create or edit a game</span></a><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&tool=perms" target="_blank" rel="noopener"><b>Admins &amp; permissions</b><span>Who can do what</span></a><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&tool=health" target="_blank" rel="noopener"><b>Hub health</b><span>Breakers, email, quota</span></a><a class="warp sos" href="https://edgewood-wg-comp.github.io/admin.html" target="_blank" rel="noopener"><b>SOS Crew admin</b><span>Guard contest</span></a></div>
-  </section>
 
   <span class="kicker"><i></i>Nick Ely · Edgewood</span>
   <h1>Built for the people<br>who <em>show up.</em></h1>
@@ -160,7 +160,12 @@
       <span class="tag">IU concessions</span>
       <h2><a class="main" href="https://edgewood-volunteers.github.io/" target="_blank" rel="noopener">Edgewood Volunteer Hub</a></h2>
       <p>Your shifts, hours and paperwork in one place. Grab an open spot at IU games, graduation and the Auditorium.</p>
-      <div class="cta"><a class="admin" href="https://edgewood-volunteers.github.io/?view=admin" target="_blank" rel="noopener"><span class="key">⚿</span> Admin sign-in</a><span class="arrow">→</span></div>
+      <div class="cta"><a class="admin" id="hubadmin" href="https://edgewood-volunteers.github.io/?view=admin" target="_blank" rel="noopener"><span class="key">⚿</span> Admin sign-in</a><button class="admin keybtn" id="keybtn" hidden aria-expanded="false" aria-controls="drawer"><span class="key">⚿</span> Skeleton key <span class="chev">▾</span></button><span class="arrow">→</span></div>
+      <div class="drawer" id="drawer" hidden>
+        <p class="dnote">Warp zones: straight to the screen, nothing else loads.</p>
+        <form class="kfind" id="kfind"><input id="kq" type="search" placeholder="Find a volunteer: name, email or phone" autocomplete="off" enterkeyhint="go"><button>Go</button></form>
+        <div class="warps"><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin" target="_blank" rel="noopener"><b>Admin home</b><span>Everything</span></a><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&day=today" target="_blank" rel="noopener"><b>Game day</b><span>Every game today</span></a><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&tool=logs" target="_blank" rel="noopener"><b>Approve stand logs</b><span>Time sheets waiting</span></a><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&tool=review" target="_blank" rel="noopener"><b>Paperwork review</b><span>Documents to check</span></a><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&ms=1" target="_blank" rel="noopener"><b>Manage stands</b><span>Create or edit a game</span></a><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&tool=perms" target="_blank" rel="noopener"><b>Admins &amp; permissions</b><span>Who can do what</span></a><a class="warp" href="https://edgewood-volunteers.github.io/?view=admin&tool=health" target="_blank" rel="noopener"><b>Hub health</b><span>Breakers, email, quota</span></a></div>
+      </div>
     </article>
 
     <article class="card">
@@ -216,7 +221,7 @@
     el.addEventListener('pointermove', function (e) {
       var b = el.getBoundingClientRect(), px = (e.clientX - b.left) / b.width, py = (e.clientY - b.top) / b.height;
       el.style.setProperty('--x', (px * 100) + '%'); el.style.setProperty('--y', (py * 100) + '%');
-      if (e.pointerType === 'mouse') { el.style.setProperty('--ry', ((px - .5) * 6) + 'deg'); el.style.setProperty('--rx', ((.5 - py) * 6) + 'deg'); }
+      if (e.pointerType === 'mouse' && !el.classList.contains('open')) { el.style.setProperty('--ry', ((px - .5) * 6) + 'deg'); el.style.setProperty('--rx', ((.5 - py) * 6) + 'deg'); }
     });
     el.addEventListener('pointerleave', function () { el.style.setProperty('--rx', '0deg'); el.style.setProperty('--ry', '0deg'); });
   });
@@ -239,13 +244,19 @@
   window.addEventListener('popstate', qrClose);   // Android back button closes it
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && qf.classList.contains('on')) qf.click(); });
 
-  // Skeleton key: shown in the installed app (or once this browser has opened ?keys=1). Not a lock: the Hub still checks your admin sign-in.
+  // Skeleton key: in the installed app (or a browser that has opened ?keys=1), the Hub card's admin button becomes "Skeleton key",
+  // which opens a drawer of warp zones inside the card. Not a lock: the Hub still checks your admin sign-in.
   (function () {
-    var k = document.getElementById('keys'), on = false;
+    var on = false;
     try { if (/[?&]keys=1/.test(location.search)) localStorage.setItem('keys', '1'); if (/[?&]keys=0/.test(location.search)) localStorage.removeItem('keys'); on = localStorage.getItem('keys') === '1'; } catch (e) {}
     if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) on = true;
     if (!on) return;
-    k.hidden = false;
+    var kb = document.getElementById('keybtn'), dr = document.getElementById('drawer'), card = kb.closest('.card');
+    document.getElementById('hubadmin').hidden = true; kb.hidden = false;
+    kb.addEventListener('click', function () {
+      var open = dr.hidden; dr.hidden = !open; card.classList.toggle('open', open); kb.setAttribute('aria-expanded', String(open));
+      if (open) { card.style.setProperty('--rx', '0deg'); card.style.setProperty('--ry', '0deg'); setTimeout(function () { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); }
+    });
     document.getElementById('kfind').addEventListener('submit', function (e) {
       e.preventDefault(); var q = document.getElementById('kq').value.trim();
       window.open('https://edgewood-volunteers.github.io/?view=admin&find=1' + (q ? '&q=' + encodeURIComponent(q) : ''), '_blank', 'noopener');
