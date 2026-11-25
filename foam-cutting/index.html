@@ -1,16 +1,192 @@
-<!doctype html><html><meta charset="utf-8"><title>EPS cutting motion study</title><style>body{margin:0;background:#111923;color:#e7edf4;font:16px system-ui}main{max-width:1100px;margin:auto;padding:24px}h1{margin:0;font-size:26px}p{color:#aab8c9}canvas{width:100%;background:#182431;border-radius:16px}button,select{background:#30465c;color:white;border:0;border-radius:7px;padding:10px}input{vertical-align:middle}#seek{width:45%}.controls{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:18px 0}.note{font-size:13px}b{color:#67e2cf}</style><main><h1>EPS disc cutting • motion study</h1><p>Stationary vertical wire · rotating and translating foam · eight blocking pockets</p><canvas id="c" width="1100" height="820"></canvas><div class="controls"><button id="play">Pause</button><button id="reset">Restart</button><input id="seek" type="range" min="0" max="1000" value="0"><select id="speed"><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select><span id="pct"></span></div><p id="status"></p><p class="note">Illustrative kinematics, not an exact CAD/follower simulation. Assumes 42″ core, 48″ square stock, 4″ thickness, eight radial tapered pockets approximately 1¾″ wide × 1¾″ deep. Wire diameter, kerf, thermal lag, follower offset and clearances are not modeled. Playback is accelerated and does not predict cutting time. Rotation pauses during radial pocket entry/exit; pocket floors follow short arcs.</p></main><script>
-const c=document.getElementById('c'),g=c.getContext('2d'),R=21,D=1.75,W=1.75,pts=[];const half=Math.asin(W/2/R);function add(a,r,kind){pts.push({a,r,kind,x:r*Math.cos(a),y:r*Math.sin(a)})}for(let n=0;n<8;n++){let center=n*Math.PI/4;let start=center-half;add(start,R,'Perimeter');add(start,R-D,'Pocket entry');for(let j=1;j<=12;j++)add(start+2*half*j/12,R-D,'Pocket floor');add(center+half,R,'Pocket exit');let next=(n+1)*Math.PI/4-half;for(let j=1;j<=65;j++)add(center+half+(next-center-half)*j/65,R,'Perimeter')}let lengths=[0];for(let i=1;i<pts.length;i++)lengths[i]=lengths[i-1]+Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);const total=lengths.at(-1);let progress=0,running=true,last=0;const scale=11,wx=310,wy=365;function current(){let dist=progress*total,i=1;while(i<lengths.length-1&&lengths[i]<dist)i++;let t=(dist-lengths[i-1])/(lengths[i]-lengths[i-1]||1),a=pts[i-1],b=pts[i];return {a:a.a+(b.a-a.a)*t,r:a.r+(b.r-a.r)*t,i,kind:b.kind}}function line(x,y,X,Y,color,width=2){g.strokeStyle=color;g.lineWidth=width;g.beginPath();g.moveTo(x,y);g.lineTo(X,Y);g.stroke()}function draw(){g.clearRect(0,0,c.width,c.height);g.save();g.transform(.90,-.24,.45,.62,-100,210);let q=current(),angle=Math.PI-q.a,cx=wx+q.r*scale,cy=wy;
-// Extrusion base, shown in the same projected plane as the stock.
-function rail(x,y,X,Y){line(x,y,X,Y,'#89939b',17);line(x,y,X,Y,'#48535c',10);line(x,y,X,Y,'#b6bdc1',3)}
-rail(210,110,940,110);rail(210,365,940,365);rail(210,620,940,620);rail(210,110,210,620);rail(940,110,940,620);
-g.save();g.translate(cx,cy);g.rotate(angle);g.fillStyle='#b7c9d2';g.globalAlpha=.16;g.fillRect(-24*scale,-24*scale,48*scale,48*scale);g.globalAlpha=1;g.strokeStyle='#6c8290';g.setLineDash([6,6]);g.strokeRect(-24*scale,-24*scale,48*scale,48*scale);g.setLineDash([]);
-g.beginPath();pts.forEach((p,i)=>{i?g.lineTo(p.x*scale,p.y*scale):g.moveTo(p.x*scale,p.y*scale)});g.closePath();g.fillStyle='#d6dedf';g.fill();g.strokeStyle='#7e929b';g.lineWidth=1;g.stroke();g.beginPath();for(let i=0;i<q.i;i++){let p=pts[i];i?g.lineTo(p.x*scale,p.y*scale):g.moveTo(p.x*scale,p.y*scale)}g.lineTo(q.r*Math.cos(q.a)*scale,q.r*Math.sin(q.a)*scale);g.strokeStyle='#2ac3a9';g.lineWidth=4;g.stroke();g.fillStyle='#536b79';g.fillRect(-22,-2,44,4);g.fillRect(-2,-22,4,44);g.fillStyle='#167c75';g.beginPath();g.arc(0,0,5,0,7);g.fill();g.restore();
-// Draw the fixed upright and arms in screen coordinates so Z is vertical.
-g.restore();function project(x,y,z=0){return [.90*x+.45*y-100,-.24*x+.62*y+210-z]}
-function beam(x,y,z,X,Y,Z){let a=project(x,y,z),b=project(X,Y,Z);line(...a,...b,'#a0a5a9',19);line(a[0]+3,a[1],b[0]+3,b[1],'#505b64',10);line(a[0]-4,a[1],b[0]-4,b[1],'#c2c6c9',2)}
-beam(95,365,-55,95,365,460);beam(95,365,200,wx,365,200);beam(95,365,-45,wx,365,-45);
-let lo=project(wx,wy,-45),hi=project(wx,wy,200);line(...lo,...hi,'#ffbf69',2);let contact=project(wx,wy);g.fillStyle='#ffbf69';g.beginPath();g.arc(...contact,5,0,7);g.fill();
-g.fillStyle='#e7edf4';g.font='16px system-ui';g.fillText('FIXED CUTTER',45,65);g.fillStyle='#aab8c9';g.fillText('Angled view • schematic extrusion frame',45,790);g.fillStyle='#67e2cf';g.fillText('Green = traversed cut',780,790);
-document.getElementById('status').innerHTML='<b>'+q.kind+'</b> · Rotation '+((q.a+half)*180/Math.PI).toFixed(1)+'° · Wire-to-center '+q.r.toFixed(2)+'″ · Radial travel '+(R-q.r).toFixed(2)+'″';document.getElementById('pct').textContent=Math.round(progress*100)+'%';document.getElementById('seek').value=progress*1000}
-function tick(t){if(last&&running)progress=Math.min(1,progress+(t-last)/90000*Number(document.getElementById('speed').value));last=t;if(progress===1){running=false;document.getElementById('play').textContent='Play'}draw();requestAnimationFrame(tick)}document.getElementById('play').onclick=()=>{if(progress===1)progress=0;running=!running;document.getElementById('play').textContent=running?'Pause':'Play'};document.getElementById('reset').onclick=()=>{progress=0;running=true;document.getElementById('play').textContent='Pause'};document.getElementById('seek').oninput=e=>{progress=e.target.value/1000;draw()};requestAnimationFrame(tick);
-</script></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EPS disc cutting • track &amp; follower motion study</title>
+<style>
+body{margin:0;background:#111923;color:#e7edf4;font:16px system-ui,sans-serif}
+main{max-width:1200px;margin:auto;padding:24px}
+h1{margin:0 0 4px;font-size:26px}
+p{color:#aab8c9;margin:6px 0}
+#view{position:relative;width:100%;border-radius:16px;overflow:hidden;background:#1b2633;touch-action:none}
+#view canvas{display:block}
+.lbl{position:absolute;pointer-events:none;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#e7edf4;background:rgba(17,25,35,.72);border:1px solid #3a4b5e;border-radius:6px;padding:3px 7px;white-space:nowrap;transform:translate(-50%,-130%)}
+.lbl.w{border-color:#ffa640;color:#ffc27a}.lbl.p{border-color:#ffd35a;color:#ffe08a}
+.hint{position:absolute;right:12px;bottom:10px;font-size:12px;color:#8193a7;pointer-events:none}
+button,select{background:#30465c;color:#fff;border:0;border-radius:7px;padding:10px 12px;font:inherit;cursor:pointer}
+input[type=range]{vertical-align:middle}
+#seek{width:38%}
+.controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:18px 0 6px}
+label{color:#aab8c9;font-size:14px;cursor:pointer}
+.note{font-size:13px}
+b{color:#67e2cf}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+<main>
+<h1>EPS disc cutting • track &amp; follower motion study</h1>
+<p>Stationary wire and follower pin · disc rotates on the sliding table · the cam track drives the table in and out</p>
+<div id="view"><div class="hint">Drag to orbit · right-drag to pan · scroll to zoom</div></div>
+<div class="controls">
+<button id="play">Pause</button><button id="reset">Restart</button>
+<input id="seek" type="range" min="0" max="1000" value="0">
+<select id="speed"><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+<span id="pct"></span>
+<label><input type="checkbox" id="xray"> See-through foam (shows track)</label>
+<button id="home">Reset view</button>
+</div>
+<p id="status"></p>
+<p class="note">Illustrative kinematics, not an exact CAD simulation. Assumes 42″ disc from 48″ square × 4″ EPS stock, eight radial pockets 1¾″ wide × 1¾″ deep, and 40&nbsp;mm (1.575″) extrusion. The base crossmembers are 26.750″. Wire and follower pin are fixed on the same line of travel, 10″ apart, so the track is the cut profile pulled in 10″ radially (same angles, same pocket depth). Wire diameter, kerf, pin and groove clearance, and thermal lag are not modeled. Rotation pauses while the pin runs the radial walls of a pocket. Playback is accelerated and does not predict cutting time.</p>
+</main>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
+/* ---------- cut profile (disc-local polar) ---------- */
+const R=21,D=1.75,W=1.75,half=Math.asin(W/2/R);
+const WIRE_X=16.0,PIN_X=26.0,OFF=PIN_X-WIRE_X;           // follower sits 10" inboard of the wire
+const pts=[];
+function add(a,r,kind){const p={a,r,kind,x:r*Math.cos(a),y:r*Math.sin(a)},l=pts.at(-1);if(l&&Math.hypot(l.x-p.x,l.y-p.y)<1e-6)return;pts.push(p)}
+for(let n=0;n<8;n++){const c=n*Math.PI/4,s=c-half;add(s,R,'Perimeter');add(s,R-D,'Pocket entry');
+ for(let j=1;j<=12;j++)add(s+2*half*j/12,R-D,'Pocket floor');add(c+half,R,'Pocket exit');
+ const nx=(n+1)*Math.PI/4-half;for(let j=1;j<=65;j++)add(c+half+(nx-c-half)*j/65,R,'Perimeter')}
+if(Math.hypot(pts[0].x-pts.at(-1).x,pts[0].y-pts.at(-1).y)<1e-6)pts.pop();
+const path=pts.concat([{...pts[0],a:pts[0].a+2*Math.PI,kind:'Perimeter'}]);
+const lens=[0];for(let i=1;i<path.length;i++)lens[i]=lens[i-1]+Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);
+const total=lens.at(-1);
+let progress=0,running=true,last=0;
+function current(){const d=progress*total;let i=1;while(i<lens.length-1&&lens[i]<d)i++;
+ const t=(d-lens[i-1])/((lens[i]-lens[i-1])||1),a=path[i-1],b=path[i];
+ return{a:a.a+(b.a-a.a)*t,r:a.r+(b.r-a.r)*t,i,t,kind:b.kind}}
+
+/* ---------- renderer / scene ---------- */
+const T=(x,y,z)=>new THREE.Vector3(x,z,-y);                 // model coords: x = travel, y = across, z = up
+const view=document.getElementById('view');
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+view.prepend(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x1b2633);
+const camera=new THREE.PerspectiveCamera(32,1,0.5,2000);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
+function home(){camera.position.copy(T(80,-60,50));controls.target.copy(T(27,0,6));controls.update()}
+home();
+
+scene.add(new THREE.HemisphereLight(0xe2ebf5,0x26313d,1.25));
+const sun=new THREE.DirectionalLight(0xffffff,1.7);sun.position.copy(T(10,-45,80));sun.castShadow=true;
+Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:1,far:250});sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-0.0005;
+sun.target.position.copy(T(28,0,0));scene.add(sun,sun.target);
+const fill=new THREE.DirectionalLight(0x9fb7d0,0.45);fill.position.copy(T(80,40,30));scene.add(fill);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0x1f2b38,roughness:1}));
+ground.rotation.x=-Math.PI/2;ground.position.y=-0.02;ground.receiveShadow=true;scene.add(ground);
+const grid=new THREE.GridHelper(144,48,0x3b4d61,0x2a3848);grid.position.copy(T(28,0,0));scene.add(grid);
+
+/* ---------- materials ---------- */
+const M=(o)=>new THREE.MeshStandardMaterial(o);
+const alu=M({color:0xb3bbc2,metalness:.35,roughness:.48}),cap=M({color:0xd6b08a,roughness:.65});
+const steel=M({color:0x7f8a94,metalness:.6,roughness:.35}),dark=M({color:0x4a5560,metalness:.4,roughness:.5});
+const foam=M({color:0xe3e7e5,roughness:1,transparent:true}),ghost=M({color:0xb7c9d2,roughness:1,transparent:true,opacity:.14,depthWrite:false});
+const ply=M({color:0xb5864c,roughness:.85,transparent:true}),trackM=M({color:0x22802f,roughness:.7,transparent:true}),grooveM=M({color:0xd22bd2,roughness:.6});
+const pinM=M({color:0xffd35a,metalness:.5,roughness:.3,emissive:0x3a2a00}),wireM=new THREE.MeshBasicMaterial({color:0xffa640});
+const cutM=new THREE.MeshBasicMaterial({color:0x2ac3a9,side:THREE.DoubleSide});
+
+/* ---------- 40 mm T-slot extrusion ---------- */
+const E=1.575,h=E/2;
+const PROF=(()=>{const side=[[-h,-h],[-.16,-h],[-.16,-h+.12],[-.34,-h+.12],[-.34,-h+.40],[.34,-h+.40],[.34,-h+.12],[.16,-h+.12],[.16,-h]],P=[];
+ for(let k=0;k<4;k++){const c=Math.cos(k*Math.PI/2),s=Math.sin(k*Math.PI/2);side.forEach(([x,y])=>P.push([x*c-y*s,x*s+y*c]))}
+ const sh=new THREE.Shape();sh.moveTo(...P[0]);P.slice(1).forEach(p=>sh.lineTo(...p));sh.closePath();
+ const hole=new THREE.Path();hole.absarc(0,0,.2,0,Math.PI*2,true);sh.holes.push(hole);return sh})();
+const gcache={};
+function ext(axis,x,y,z,L){let g=gcache[L];if(!g){g=new THREE.ExtrudeGeometry(PROF,{depth:L,bevelEnabled:false,curveSegments:8});g.translate(0,0,-L/2);gcache[L]=g}
+ const m=new THREE.Mesh(g,[cap,alu]);if(axis==='x')m.rotation.y=Math.PI/2;else if(axis==='z')m.rotation.x=-Math.PI/2;
+ m.position.copy(T(x,y,z));m.castShadow=m.receiveShadow=true;return m}
+function box(x0,x1,y0,y1,z0,z1,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,z1-z0,y1-y0),mat);
+ m.position.copy(T((x0+x1)/2,(y0+y1)/2,(z0+z1)/2));m.castShadow=m.receiveShadow=true;return m}
+function cyl(r,x,y,z0,z1,mat,seg=32){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,z1-z0,seg),mat);m.position.copy(T(x,y,(z0+z1)/2));m.castShadow=true;m.receiveShadow=true;return m}
+function slab(poly,z0,thk,mat,holes=[]){const sh=new THREE.Shape(poly.map(p=>new THREE.Vector2(p[0],p[1])));
+ holes.forEach(hp=>sh.holes.push(new THREE.Path(hp.map(p=>new THREE.Vector2(p[0],p[1])))));
+ const g=new THREE.ExtrudeGeometry(sh,{depth:thk,bevelEnabled:false,curveSegments:64});g.rotateX(-Math.PI/2);g.translate(0,z0,0);
+ const m=new THREE.Mesh(g,mat);m.castShadow=m.receiveShadow=true;return m}
+function offset(poly,d){const n=poly.length,out=[];
+ for(let i=0;i<n;i++){const p=poly[(i-1+n)%n],q=poly[i],r=poly[(i+1)%n];
+  let e1=[q[0]-p[0],q[1]-p[1]],e2=[r[0]-q[0],r[1]-q[1]];const l1=Math.hypot(...e1),l2=Math.hypot(...e2);
+  const n1=[e1[1]/l1,-e1[0]/l1],n2=[e2[1]/l2,-e2[0]/l2];let m=[n1[0]+n2[0],n1[1]+n2[1]];const ml=Math.hypot(...m)||1;m=[m[0]/ml,m[1]/ml];
+  const k=d/Math.max(.35,m[0]*n1[0]+m[1]*n1[1]);out.push([q[0]+m[0]*k,q[1]+m[1]*k])}return out}
+
+/* ---------- fixed frame: base, column, arms, wire, follower ---------- */
+const fixed=new THREE.Group();scene.add(fixed);
+fixed.add(ext('z',h,0,26.4/2,26.4));                                  // upright
+fixed.add(ext('x',E+(16.7-E)/2,0,15.2+h,16.7-E));                     // upper arm
+fixed.add(ext('x',E+(27.8-E)/2,0,E+h,27.8-E));                        // lower arm, carries the follower
+[13.9,25.1,41.8].forEach(x=>fixed.add(ext('y',x,0,h,26.75)));         // three 26.750" crossmembers
+[-12.6,12.6].forEach(y=>fixed.add(box(12.3,44,y-.4,y+.4,E,2.2,steel)));// linear rails
+const ped=new THREE.Shape([[24.1,3.15],[27.8,3.15],[26.8,4.5],[25.1,4.5]].map(p=>new THREE.Vector2(...p)));
+const pg=new THREE.ExtrudeGeometry(ped,{depth:3,bevelEnabled:false});pg.translate(0,0,-1.5);
+const pedM=new THREE.Mesh(pg,dark);pedM.castShadow=pedM.receiveShadow=true;fixed.add(pedM);
+fixed.add(cyl(.25,PIN_X,0,4.5,5.05,pinM,20));                         // stationary follower pin
+fixed.add(cyl(.045,WIRE_X,0,E*2,15.2,wireM,8));                       // hot wire
+fixed.add(box(WIRE_X-.5,WIRE_X+.5,-.5,.5,E*2,E*2+.35,dark),box(WIRE_X-.5,WIRE_X+.5,-.5,.5,14.85,15.2,dark));
+const glow=new THREE.Mesh(new THREE.SphereGeometry(.28,16,12),new THREE.MeshBasicMaterial({color:0xffbf69}));fixed.add(glow);
+
+/* ---------- sliding table ---------- */
+const table=new THREE.Group();scene.add(table);
+const TZ=2.6;
+[-12.6,12.6].forEach(y=>{table.add(ext('x',0,y,TZ+h,19.2));[-6,6].forEach(x=>table.add(box(x-1.5,x+1.5,y-.8,y+.8,2.2,TZ,steel)))});
+table.add(ext('y',0,0,TZ+h,25.2-E),ext('y',9.6-h,0,TZ+h,25.2-E));
+table.add(cyl(2.2,0,0,TZ+E,4.7,steel,40));                            // rotary bearing / hub
+
+/* ---------- rotating disc assembly ---------- */
+const disc=new THREE.Group();table.add(disc);
+const circ=r=>Array.from({length:96},(_,i)=>[r*Math.cos(i*Math.PI/48),r*Math.sin(i*Math.PI/48)]);
+const profile=pts.map(p=>[p.x,p.y]);
+const track=pts.map(p=>[(p.r-OFF)*Math.cos(p.a),(p.r-OFF)*Math.sin(p.a)]);
+disc.add(slab(circ(12),4.7,.4,trackM));                                // green track plate
+disc.add(slab(offset(track,.28),4.67,.035,grooveM,[offset(track,-.28)]));// follower groove (underside)
+const plyM=slab([[-10,-10],[10,-10],[10,10],[-10,10]],5.1,.75,ply);disc.add(plyM);
+const foamM=slab(profile,5.85,4,foam);disc.add(foamM);
+disc.add(slab([[-24,-24],[24,-24],[24,24],[-24,24]],5.85,4,ghost,[profile]));
+// cut trace ribbon on the foam top
+const NW=.2,tp=new Float32Array(path.length*6),orig=new Float32Array(path.length*6),idx=[];
+function nrm(i){const a=path[Math.max(0,i-1)],b=path[Math.min(path.length-1,i+1)];const dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy)||1;return[dy/l,-dx/l]}
+function setPair(arr,i,x,y,n){const Z=9.87,o=i*6;arr.set([x+n[0]*NW,Z,-(y+n[1]*NW),x-n[0]*NW,Z,-(y-n[1]*NW)],o)}
+path.forEach((p,i)=>setPair(tp,i,p.x,p.y,nrm(i)));orig.set(tp);
+for(let i=0;i<path.length-1;i++){const a=2*i;idx.push(a,a+1,a+2,a+1,a+3,a+2)}
+const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(tp,3));tg.setIndex(idx);
+disc.add(new THREE.Mesh(tg,cutM));
+let mod=-1;
+function updateTrace(q){const at=tg.attributes.position;
+ if(mod>=0)at.array.set(orig.subarray(mod*6,mod*6+6),mod*6);
+ const a=path[q.i-1],b=path[q.i],x=a.x+(b.x-a.x)*q.t,y=a.y+(b.y-a.y)*q.t,dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy)||1;
+ setPair(at.array,q.i,x,y,[dy/l,-dx/l]);mod=q.i;at.needsUpdate=true;tg.setDrawRange(0,6*q.i)}
+
+/* ---------- labels ---------- */
+const labels=[['Fixed wire','w',()=>T(WIRE_X,0,15.2)],['Follower pin (fixed)','p',()=>T(PIN_X,0,3.2)],
+ ['Sliding table','',()=>T(table.position.x+9,12.6,TZ+E)],['Disc + track plate (rotates)','',()=>T(table.position.x+9,-9,9.85)],['Base · 26.750″ crossmembers','',()=>T(41.8,-13.4,E)]]
+ .map(([t,c,f])=>{const d=document.createElement('div');d.className='lbl '+c;d.textContent=t;view.appendChild(d);return{d,f}});
+
+/* ---------- frame update ---------- */
+function resize(){const w=view.clientWidth,hh=Math.round(Math.min(760,Math.max(380,w*.62)));renderer.setSize(w,hh);view.style.height=hh+'px';camera.aspect=w/hh;camera.updateProjectionMatrix()}
+addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id);
+function update(){const q=current(),theta=Math.PI-q.a;
+ table.position.x=WIRE_X+q.r;disc.rotation.y=theta;glow.position.copy(T(WIRE_X,0,9.85));updateTrace(q);
+ const deg=((q.a+half)*180/Math.PI);
+ $('status').innerHTML='<b>'+q.kind+'</b> · Rotation '+deg.toFixed(1)+'° · Wire-to-center '+q.r.toFixed(2)+'″ · Pin-to-center '+(q.r-OFF).toFixed(2)+'″ · Table stroke '+(R-q.r).toFixed(2)+'″';
+ $('pct').textContent=Math.round(progress*100)+'%';$('seek').value=progress*1000}
+function place(){const w=view.clientWidth,hh=view.clientHeight;labels.forEach(({d,f})=>{const v=f().project(camera);
+ d.style.display=v.z<1?'block':'none';d.style.left=(v.x*.5+.5)*w+'px';d.style.top=(-v.y*.5+.5)*hh+'px'})}
+function tick(t){if(last&&running)progress=Math.min(1,progress+(t-last)/90000*Number($('speed').value));last=t;
+ if(progress===1&&running){running=false;$('play').textContent='Play'}
+ update();controls.update();renderer.render(scene,camera);place();requestAnimationFrame(tick)}
+$('play').onclick=()=>{if(progress===1)progress=0;running=!running;$('play').textContent=running?'Pause':'Play'};
+$('reset').onclick=()=>{progress=0;running=true;$('play').textContent='Pause'};
+$('seek').oninput=e=>{progress=e.target.value/1000};
+$('home').onclick=home;
+$('xray').onchange=e=>{const o=e.target.checked;foam.opacity=o?.22:1;ply.opacity=o?.3:1;trackM.opacity=o?.45:1;foam.depthWrite=ply.depthWrite=trackM.depthWrite=!o};
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
