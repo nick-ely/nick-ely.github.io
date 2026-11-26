@@ -139,6 +139,16 @@
   .card .drawer#drawer2 .kfind input:focus { border-color:var(--violet); }
   #drawer2 .kfind button { background:var(--violet); color:#fff; }
   .warp.sos:hover, .warp.sos:focus-visible { border-color:var(--violet); background:rgba(123,92,255,.14); }
+  .extras { margin-top:28px; }
+  .extras h3 { font-size:12px; font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); margin:0 0 12px; }
+  .mini { display:flex; align-items:center; gap:16px; padding:16px 18px; border-radius:20px; text-decoration:none; color:inherit; max-width:420px;
+    background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.015)); border:1px solid var(--line); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+    transition:border-color .2s, transform .2s; }
+  .mini:hover, .mini:focus-visible { border-color:var(--teal); transform:translateY(-2px); outline:none; }
+  .mini .ico { width:48px; height:48px; flex:none; border-radius:14px; display:grid; place-items:center; font-size:24px; background:color-mix(in srgb, var(--teal) 20%, transparent); }
+  .mini b { display:block; color:var(--ink); font-family:Fraunces, Georgia, serif; font-size:20px; font-weight:800; }
+  .mini span { color:var(--muted); font-size:14px; }
+  .mini .go { margin-left:auto; color:var(--teal); font-size:20px; font-weight:700; }
   footer { margin-top:64px; display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; color:var(--muted); font-size:13px; border-top:1px solid var(--line); padding-top:22px; }
   footer b { color:var(--ink); font-weight:500; }
 
@@ -200,6 +210,14 @@
     </article>
   </div>
 
+  <section class="extras">
+    <h3>Also here</h3>
+    <a class="mini" href="/scorekeeper/">
+      <span class="ico" aria-hidden="true">🃏</span>
+      <span><b>Scorekeeper</b><span>Keep score for rummy and other card games</span></span>
+      <span class="go" aria-hidden="true">→</span>
+    </a>
+  </section>
 
   <footer><span>Designed &amp; built by <b>Nick Ely</b></span><span>© 2026 NE Prints &amp; Design, LLC</span></footer>
 </main>
