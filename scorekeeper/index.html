@@ -175,7 +175,21 @@ if (!G) {
 try { localStorage.setItem('scorekeeper-last-game', G); } catch(e){}
 const LKEY = 'scorekeeper-v2-' + G;
 
-let S = (() => { try { return JSON.parse(localStorage.getItem(LKEY)) || fresh(); } catch(e){ return fresh(); } })();
+let S = (() => {
+  try {
+    const cur = JSON.parse(localStorage.getItem(LKEY));
+    if (cur) return cur;
+    // bring over a game saved by the first version of the app
+    const old = JSON.parse(localStorage.getItem('scorekeeper-v1'));
+    if (old && old.players && old.players.length) {
+      localStorage.removeItem('scorekeeper-v1');
+      const s = Object.assign(fresh(), old, { v: 0 });
+      localStorage.setItem(LKEY, JSON.stringify(s));
+      return s;
+    }
+  } catch(e){}
+  return fresh();
+})();
 let editing = null, undoState = null, toastTimer = null, inflight = 0;
 
 // ---- shared game logic (identical copy lives in apps-script.gs) ----
