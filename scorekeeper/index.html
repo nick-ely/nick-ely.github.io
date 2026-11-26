@@ -80,6 +80,12 @@
   .banner .big{font:800 22px/1.1 Georgia,serif}
   .empty{text-align:center;color:var(--muted);padding:22px;border:1px dashed var(--line);border-radius:16px}
   .footer{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+  .status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .status i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .status.live i{background:var(--green)} .status.saving i{background:var(--gold)} .status.off i{background:var(--red)}
+  td.miss{color:var(--muted)}
+  .erow input.dirty{border-color:var(--gold)}
+  .hdr-btns{display:flex;gap:8px;align-items:center}
   .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--card);border:1px solid var(--line);padding:10px 14px;border-radius:12px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:5}
   .toast button{color:var(--gold);background:none;font-weight:700}
 </style>
@@ -87,8 +93,14 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Score<span>keeper</span></h1>
-    <button class="btn" id="settingsBtn">⚙︎ Game</button>
+    <div>
+      <h1>Score<span>keeper</span></h1>
+      <div class="status" id="status"><i></i><span>This phone only</span></div>
+    </div>
+    <div class="hdr-btns">
+      <button class="btn" id="shareBtn">Share</button>
+      <button class="btn" id="settingsBtn">⚙︎</button>
+    </div>
   </header>
 
   <div class="settings hidden" id="settings">
@@ -125,8 +137,10 @@
       <div id="entryRows"></div>
       <div class="row" style="margin-top:4px">
         <button class="btn hidden" type="button" id="cancelEdit">Cancel</button>
-        <button class="btn primary" type="submit" style="flex:1" id="saveRound">Save round</button>
+        <button class="btn primary" type="submit" style="flex:1" id="saveRound">Save</button>
       </div>
+      <p class="muted" id="entryHint" style="font-size:13px;margin:10px 2px 0"></p>
+      <button class="btn hidden" type="button" id="closeRound" style="width:100%;margin-top:8px">Finish round (blanks count as 0)</button>
     </form>
   </div>
 
@@ -141,180 +155,284 @@
 <div class="toast hidden" id="toast"><span id="toastMsg"></span><button id="toastUndo">Undo</button></div>
 
 <script>
-const KEY = 'scorekeeper-v1';
-const $ = s => document.querySelector(s);
-let S = load() || { players: [], rounds: [], target: 500, mode: 'high' };
-let editing = null;      // index of round being edited
-let undoState = null, toastTimer = null;
+// Paste the Google Apps Script web-app URL here to share games across phones.
+// Leave empty and the app keeps scores on this phone only.
+const SHEET_URL = '';
 
-function load(){ try { return JSON.parse(localStorage.getItem(KEY)); } catch(e){ return null; } }
-function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => Math.random().toString(36).slice(2, 9);
-const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fresh = () => ({ players: [], rounds: [], target: 500, mode: 'high', v: 0 });
+
+// game id from ?g= so a shared link opens the same game
+const params = new URLSearchParams(location.search);
+let G = (params.get('g') || '').replace(/[^a-z0-9]/gi, '').slice(0, 20);
+if (!G) {
+  try { G = localStorage.getItem('scorekeeper-last-game') || ''; } catch(e){}
+  if (!G) G = uid();
+  params.set('g', G); history.replaceState(null, '', '?' + params);
+}
+try { localStorage.setItem('scorekeeper-last-game', G); } catch(e){}
+const LKEY = 'scorekeeper-v2-' + G;
+
+let S = (() => { try { return JSON.parse(localStorage.getItem(LKEY)) || fresh(); } catch(e){ return fresh(); } })();
+let editing = null, undoState = null, toastTimer = null, inflight = 0;
+
+// ---- shared game logic (identical copy lives in apps-script.gs) ----
+function applyOp(s, o) {
+  s.players = s.players || []; s.rounds = s.rounds || [];
+  var clean = function (v) { v = Math.round(Number(v)); return isFinite(v) ? Math.max(-99999, Math.min(99999, v)) : 0; };
+  var has = function (id) { return s.players.some(function (p) { return p.id === id; }); };
+  switch (o.op) {
+    case 'addPlayer': {
+      var id = String(o.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 12);
+      var name = String(o.name || '').trim().slice(0, 30);
+      if (id && name && !has(id)) s.players.push({ id: id, name: name });
+      break;
+    }
+    case 'renamePlayer': {
+      var n = String(o.name || '').trim().slice(0, 30);
+      s.players.forEach(function (p) { if (p.id === o.id && n) p.name = n; });
+      break;
+    }
+    case 'removePlayer':
+      s.players = s.players.filter(function (p) { return p.id !== o.id; });
+      s.rounds.forEach(function (r) { delete r[o.id]; });
+      s.rounds = s.rounds.filter(function (r) { return Object.keys(r).length; });
+      break;
+    case 'setScores': {
+      var i = o.index | 0;
+      if (i < 0 || i > s.rounds.length) i = s.rounds.length;
+      if (i === s.rounds.length) s.rounds.push({});
+      var r = s.rounds[i], sc = o.scores || {};
+      Object.keys(sc).forEach(function (k) {
+        if (!has(k)) return;
+        if (sc[k] === null) delete r[k]; else r[k] = clean(sc[k]);
+      });
+      if (!Object.keys(r).length) s.rounds.splice(i, 1);
+      break;
+    }
+    case 'closeRound': {
+      var rr = s.rounds[o.index | 0];
+      if (rr) s.players.forEach(function (p) { if (!(p.id in rr)) rr[p.id] = 0; });
+      break;
+    }
+    case 'deleteRound': s.rounds.splice(o.index | 0, 1); break;
+    case 'newGame': s.rounds = []; break;
+    case 'clearAll': s.players = []; s.rounds = []; break;
+    case 'settings':
+      if ('target' in o) s.target = Math.max(0, clean(o.target));
+      if (o.mode === 'high' || o.mode === 'low') s.mode = o.mode;
+      break;
+    case 'restore':
+      if (o.state) {
+        s.players = o.state.players || []; s.rounds = o.state.rounds || [];
+        s.target = o.state.target || 0; s.mode = o.state.mode === 'low' ? 'low' : 'high';
+      }
+      break;
+  }
+  return s;
+}
+
+// ---- sync ----
+function setStatus(cls, txt){ const el = $('#status'); el.className = 'status ' + cls; el.lastElementChild.textContent = txt; }
+function saveLocal(){ try { localStorage.setItem(LKEY, JSON.stringify(S)); } catch(e){} }
+
+function op(o){
+  applyOp(S, o); saveLocal(); render();
+  if (!SHEET_URL) return;
+  inflight++; setStatus('saving', 'Saving…');
+  fetch(SHEET_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ g: G }, o)) })
+    .then(r => r.json())
+    .then(s => { inflight--; if (!inflight) { S = s; saveLocal(); render(); } setStatus('live', 'Live · shared'); })
+    .catch(() => { inflight--; setStatus('off', 'Not saved — check signal'); });
+}
+
+function poll(){
+  if (!SHEET_URL || inflight || document.hidden) return;
+  fetch(SHEET_URL + '?g=' + G + '&t=' + Date.now())
+    .then(r => r.json())
+    .then(s => { if (!inflight && s.v !== S.v) { S = s; saveLocal(); render(); } setStatus('live', 'Live · shared'); })
+    .catch(() => setStatus('off', 'Offline — retrying'));
+}
+if (SHEET_URL) { setStatus('saving', 'Connecting…'); poll(); setInterval(poll, 3000); document.addEventListener('visibilitychange', poll); }
+
+// ---- helpers ----
 const total = id => S.rounds.reduce((a, r) => a + (r[id] || 0), 0);
+const complete = r => S.players.every(p => p.id in r);
+const currentIndex = () => (S.rounds.length && !complete(S.rounds[S.rounds.length - 1])) ? S.rounds.length - 1 : S.rounds.length;
+const nameOf = id => (S.players.find(p => p.id === id) || {}).name || '';
 
 function snapshot(msg){
-  undoState = JSON.stringify(S);
+  undoState = JSON.parse(JSON.stringify({ players: S.players, rounds: S.rounds, target: S.target, mode: S.mode }));
   $('#toastMsg').textContent = msg;
   $('#toast').classList.remove('hidden');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => $('#toast').classList.add('hidden'), 6000);
 }
-$('#toastUndo').onclick = () => {
-  if (undoState) { S = JSON.parse(undoState); undoState = null; editing = null; save(); render(); }
-  $('#toast').classList.add('hidden');
-};
+$('#toastUndo').onclick = () => { if (undoState) { editing = null; op({ op: 'restore', state: undoState }); undoState = null; } $('#toast').classList.add('hidden'); };
 
 function leaders(){
-  if (!S.players.length || !S.rounds.length) return [];
+  const done = S.rounds.filter(complete);
+  if (!S.players.length || !done.length) return [];
   const t = S.players.map(p => total(p.id));
   const best = S.mode === 'high' ? Math.max(...t) : Math.min(...t);
   return S.players.filter((p, i) => t[i] === best).map(p => p.id);
 }
 function winner(){
-  const tgt = S.target;
-  if (!tgt || !S.rounds.length) return null;
-  const hit = S.players.some(p => total(p.id) >= tgt);
-  if (!hit) return null;
-  // High mode: first to target wins (leader). Low mode: someone busted the limit; lowest wins.
-  return leaders();
+  if (!S.target || !S.rounds.length || currentIndex() < S.rounds.length) return null;
+  return S.players.some(p => total(p.id) >= S.target) ? leaders() : null;
 }
 
-function render(keepEntry){
-  // settings
+// ---- render ----
+function render(){
   if (document.activeElement !== $('#target')) $('#target').value = S.target || '';
   document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.v === S.mode));
 
-  // banner
   const w = winner();
-  $('#bannerSlot').innerHTML = w && w.length ? `<div class="banner"><div><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase">Game over</div><div class="big">🏆 ${w.map(id => esc(S.players.find(p => p.id === id).name)).join(' & ')} win${w.length > 1 ? '' : 's'}</div></div><button class="btn" style="background:#1a1405;color:var(--gold)" onclick="newGame()">Play again</button></div>` : '';
+  $('#bannerSlot').innerHTML = w && w.length ? `<div class="banner"><div><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase">Game over</div><div class="big">🏆 ${w.map(id => esc(nameOf(id))).join(' & ')} win${w.length > 1 ? '' : 's'}</div></div><button class="btn" id="againBtn" style="background:#1a1405;color:var(--gold)">Play again</button></div>` : '';
+  const again = $('#againBtn'); if (again) again.onclick = newGame;
 
-  // board
   const lead = leaders();
   const max = Math.max(1, S.target || 0, ...S.players.map(p => Math.abs(total(p.id))));
   $('#board').innerHTML = S.players.length ? S.players.map(p => {
-    const t = total(p.id), last = S.rounds.length ? (S.rounds[S.rounds.length - 1][p.id] || 0) : null;
+    const t = total(p.id), last = S.rounds.length && (p.id in S.rounds[S.rounds.length - 1]) ? S.rounds[S.rounds.length - 1][p.id] : null;
     const pct = Math.max(0, Math.min(100, t / max * 100));
     return `<div class="p ${lead.includes(p.id) ? 'lead' : ''}">
       ${lead.includes(p.id) ? '<span class="crown">👑</span>' : ''}
-      <div class="name" onclick="renamePlayer('${p.id}')">${esc(p.name)}</div>
+      <div class="name" data-rename="${esc(p.id)}">${esc(p.name)}</div>
       <div class="total ${t < 0 ? 'neg' : ''}">${t}</div>
       <div class="sub">${last === null ? '&nbsp;' : 'last ' + (last > 0 ? '+' : '') + last}${S.target && S.mode === 'high' ? ` · ${Math.max(0, S.target - t)} to go` : ''}</div>
       ${S.target ? `<div class="bar"><i style="width:${pct}%;${S.mode === 'low' ? 'background:var(--red)' : ''}"></i></div>` : ''}
-      <button class="icon rm" title="Remove" onclick="removePlayer('${p.id}')">×</button>
+      <button class="icon rm" title="Remove" data-remove="${esc(p.id)}">×</button>
     </div>`;
   }).join('') : '<div class="empty" style="grid-column:1/-1">Add players to start.</div>';
 
-  // entry (skipped on settings changes so half-typed scores survive)
-  if (!keepEntry) renderEntry();
+  renderEntry();
   renderHistory();
 }
 
 function renderEntry(){
   $('#entrySection').classList.toggle('hidden', !S.players.length);
-  const r = editing !== null ? S.rounds[editing] : null;
-  $('#entryTitle').textContent = r ? `Editing round ${editing + 1}` : `Round ${S.rounds.length + 1}`;
-  $('#saveRound').textContent = r ? 'Update round' : 'Save round';
-  $('#cancelEdit').classList.toggle('hidden', !r);
+  if (editing !== null && editing >= S.rounds.length) editing = null;
+  const idx = editing !== null ? editing : currentIndex();
+  const r = S.rounds[idx] || {};
+
+  // keep anything this phone has typed but not saved yet
+  const kept = {};
+  document.querySelectorAll('#entryRows input.dirty').forEach(i => {
+    kept[i.dataset.id] = { v: i.value, neg: document.querySelector(`.sign[data-id="${CSS.escape(i.dataset.id)}"]`).classList.contains('neg') };
+  });
+  const focusId = document.activeElement && document.activeElement.closest && document.activeElement.closest('#entryRows') ? document.activeElement.dataset.id : null;
+  const rowsKey = idx + '|' + editing;
+  if ($('#entryRows').dataset.key !== rowsKey) { for (const k in kept) delete kept[k]; $('#entryRows').dataset.key = rowsKey; }
+
+  $('#entryTitle').textContent = editing !== null ? `Editing round ${idx + 1}` : `Round ${idx + 1}`;
+  $('#saveRound').textContent = editing !== null ? 'Update round' : 'Save my scores';
+  $('#cancelEdit').classList.toggle('hidden', editing === null);
+  const missing = S.players.filter(p => !(p.id in r));
+  const entered = S.players.length - missing.length;
+  $('#entryHint').textContent = editing !== null ? '' : entered ? `Waiting on ${missing.map(p => p.name).join(', ')}. Round moves on when everyone is in.` : 'Enter just your own score, or everyone\'s — whoever has a phone.';
+  $('#closeRound').classList.toggle('hidden', editing !== null || !entered);
+
   $('#entryRows').innerHTML = S.players.map(p => {
-    const v = r ? (r[p.id] || 0) : null;
-    const neg = v !== null && v < 0;
+    const k = kept[p.id];
+    const has = p.id in r, v = has ? r[p.id] : null;
+    const neg = k ? k.neg : (v !== null && v < 0);
+    const val = k ? k.v : (v === null ? '' : String(Math.abs(v)));
     return `<div class="erow">
-      <div class="nm">${esc(p.name)}</div>
-      <button type="button" class="sign ${neg ? 'neg' : ''}" data-id="${p.id}" aria-label="Toggle sign">${neg ? '−' : '+'}</button>
-      <input type="text" inputmode="numeric" pattern="[0-9]*" data-id="${p.id}" placeholder="0" value="${v !== null && v !== 0 ? Math.abs(v) : ''}" enterkeyhint="next">
+      <div class="nm">${esc(p.name)}${has && !k ? ' <span class="muted">✓</span>' : ''}</div>
+      <button type="button" class="sign ${neg ? 'neg' : ''}" data-id="${esc(p.id)}" aria-label="Toggle sign">${neg ? '−' : '+'}</button>
+      <input type="text" inputmode="numeric" pattern="[0-9]*" data-id="${esc(p.id)}" class="${k ? 'dirty' : ''}" placeholder="–" value="${esc(val)}" enterkeyhint="next">
     </div>`;
   }).join('');
+
+  const inputs = [...document.querySelectorAll('#entryRows input')];
   document.querySelectorAll('.sign').forEach(b => b.onclick = () => {
     b.classList.toggle('neg'); b.textContent = b.classList.contains('neg') ? '−' : '+';
+    const inp = inputs.find(i => i.dataset.id === b.dataset.id); inp.classList.add('dirty');
   });
-  // typing a leading "-" (desktop/Android) flips the sign button
-  document.querySelectorAll('#entryRows input').forEach((inp, i, all) => {
+  inputs.forEach((inp, i) => {
     inp.oninput = () => {
-      if (inp.value.includes('-')) {
-        inp.value = inp.value.replace(/-/g, '');
-        const b = document.querySelector(`.sign[data-id="${inp.dataset.id}"]`); b.click();
-      }
+      if (inp.value.includes('-')) { inp.value = inp.value.replace(/-/g, ''); document.querySelector(`.sign[data-id="${CSS.escape(inp.dataset.id)}"]`).click(); }
       inp.value = inp.value.replace(/[^0-9]/g, '');
+      inp.classList.add('dirty');
     };
-    inp.onkeydown = e => { if (e.key === 'Enter' && i < all.length - 1) { e.preventDefault(); all[i + 1].focus(); } };
+    inp.onkeydown = e => { if (e.key === 'Enter' && i < inputs.length - 1) { e.preventDefault(); inputs[i + 1].focus(); } };
   });
-
+  if (focusId) { const f = inputs.find(i => i.dataset.id === focusId); if (f) { f.focus(); const n = f.value.length; try { f.setSelectionRange(n, n); } catch(e){} } }
 }
 
 function renderHistory(){
   if (!S.rounds.length) { $('#history').innerHTML = '<div class="empty">No rounds yet.</div>'; return; }
   const head = `<tr><th>#</th>${S.players.map(p => `<th>${esc(p.name)}</th>`).join('')}<th></th></tr>`;
-  const rows = S.rounds.map((r, i) => `<tr class="${editing === i ? 'editing' : ''}" onclick="editRound(${i})"><td>${i + 1}</td>${S.players.map(p => { const v = r[p.id] || 0; return `<td class="${v < 0 ? 'neg' : ''}">${v}</td>`; }).join('')}<td><button class="icon" onclick="event.stopPropagation();deleteRound(${i})" title="Delete">🗑</button></td></tr>`).join('');
+  const rows = S.rounds.map((r, i) => `<tr class="${editing === i ? 'editing' : ''}" data-edit="${i}"><td>${i + 1}</td>${S.players.map(p => p.id in r ? `<td class="${r[p.id] < 0 ? 'neg' : ''}">${r[p.id]}</td>` : '<td class="miss">·</td>').join('')}<td><button class="icon" data-del="${i}" title="Delete">🗑</button></td></tr>`).join('');
   const foot = `<tr><td>Total</td>${S.players.map(p => `<td class="${total(p.id) < 0 ? 'neg' : ''}">${total(p.id)}</td>`).join('')}<td></td></tr>`;
   $('#history').innerHTML = `<div class="tablewrap"><table><thead>${head}</thead><tbody>${rows}</tbody><tfoot>${foot}</tfoot></table></div><p class="muted" style="font-size:13px;margin:8px 2px">Tap a round to fix a score.</p>`;
 }
 
-// players
+// ---- events ----
+$('#board').onclick = e => {
+  const rn = e.target.closest('[data-rename]'), rm = e.target.closest('[data-remove]');
+  if (rn) { const n = prompt('Rename player', nameOf(rn.dataset.rename)); if (n && n.trim()) op({ op: 'renamePlayer', id: rn.dataset.rename, name: n.trim() }); }
+  if (rm) { snapshot(`Removed ${nameOf(rm.dataset.remove)}`); editing = null; op({ op: 'removePlayer', id: rm.dataset.remove }); }
+};
+$('#history').onclick = e => {
+  const d = e.target.closest('[data-del]');
+  if (d) { const i = +d.dataset.del; if (!confirm(`Delete round ${i + 1}?`)) return; snapshot(`Deleted round ${i + 1}`); editing = null; op({ op: 'deleteRound', index: i }); return; }
+  const tr = e.target.closest('[data-edit]');
+  if (tr) { editing = +tr.dataset.edit; render(); $('#entrySection').scrollIntoView({ behavior: 'smooth' }); }
+};
 $('#addForm').onsubmit = e => {
   e.preventDefault();
-  const n = $('#newName').value.trim();
-  if (!n) return;
-  S.players.push({ id: uid(), name: n });
+  const n = $('#newName').value.trim(); if (!n) return;
   $('#newName').value = '';
-  save(); render(); $('#newName').focus();
+  op({ op: 'addPlayer', id: uid(), name: n });
+  $('#newName').focus();
 };
-function renamePlayer(id){
-  const p = S.players.find(x => x.id === id);
-  const n = prompt('Rename player', p.name);
-  if (n && n.trim()) { p.name = n.trim(); save(); render(); }
-}
-function removePlayer(id){
-  const p = S.players.find(x => x.id === id);
-  snapshot(`Removed ${p.name}`);
-  S.players = S.players.filter(x => x.id !== id);
-  S.rounds.forEach(r => delete r[id]);
-  S.rounds = S.rounds.filter(r => Object.keys(r).length);
-  editing = null; save(); render();
-}
-
-// rounds
 $('#entryForm').onsubmit = e => {
   e.preventDefault();
-  const r = {};
-  let any = false;
-  S.players.forEach(p => {
-    const v = parseInt(document.querySelector(`#entryRows input[data-id="${p.id}"]`).value, 10) || 0;
-    const neg = document.querySelector(`.sign[data-id="${p.id}"]`).classList.contains('neg');
-    r[p.id] = neg ? -v : v;
-    if (v) any = true;
+  const scores = {}; let any = false;
+  document.querySelectorAll('#entryRows input.dirty').forEach(i => {
+    const neg = document.querySelector(`.sign[data-id="${CSS.escape(i.dataset.id)}"]`).classList.contains('neg');
+    scores[i.dataset.id] = i.value === '' ? null : (neg ? -1 : 1) * parseInt(i.value, 10);
+    any = true;
   });
-  if (!any && editing === null && !confirm('Everyone scored 0 this round. Save anyway?')) return;
-  if (editing !== null) { S.rounds[editing] = r; editing = null; }
-  else S.rounds.push(r);
-  save(); render();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (!any) return;
+  const index = editing !== null ? editing : currentIndex();
+  document.querySelectorAll('#entryRows input.dirty').forEach(i => i.classList.remove('dirty'));
+  editing = null;
+  op({ op: 'setScores', index, scores });
+  if (document.activeElement) document.activeElement.blur();
 };
-function editRound(i){ editing = i; render(); $('#entrySection').scrollIntoView({ behavior: 'smooth' }); }
-$('#cancelEdit').onclick = () => { editing = null; render(); };
-function deleteRound(i){
-  snapshot(`Deleted round ${i + 1}`);
-  S.rounds.splice(i, 1); editing = null; save(); render();
-}
-
-// game
+$('#cancelEdit').onclick = () => { editing = null; $('#entryRows').dataset.key = ''; render(); };
+$('#closeRound').onclick = () => {
+  const i = currentIndex(); if (i >= S.rounds.length) return;
+  const missing = S.players.filter(p => !(p.id in S.rounds[i])).map(p => p.name);
+  if (confirm(`Give ${missing.join(', ')} a 0 and finish round ${i + 1}?`)) op({ op: 'closeRound', index: i });
+};
 function newGame(){
+  if (S.rounds.length && !confirm('Start a new game with the same players?')) return;
   if (S.rounds.length) snapshot('Started a new game');
-  S.rounds = []; editing = null; save(); render();
+  editing = null; op({ op: 'newGame' });
 }
 $('#newGame').onclick = newGame;
 $('#resetAll').onclick = () => {
-  snapshot('Cleared players and scores');
-  S.players = []; S.rounds = []; editing = null; save(); render();
+  if (!confirm('Remove all players and scores?')) return;
+  snapshot('Cleared players and scores'); editing = null; op({ op: 'clearAll' });
+};
+$('#shareBtn').onclick = async () => {
+  const url = location.origin + location.pathname + '?g=' + G;
+  if (!SHEET_URL) alert('Sharing needs the Google Sheet hookup first — until then scores stay on this phone.');
+  try { if (navigator.share) { await navigator.share({ title: 'Scorekeeper', text: 'Join the game and enter your score', url }); return; } } catch(e){ return; }
+  try { await navigator.clipboard.writeText(url); alert('Link copied:\n' + url); } catch(e){ prompt('Copy this link', url); }
 };
 
-// settings
+let tgtTimer;
 $('#settingsBtn').onclick = () => $('#settings').classList.toggle('hidden');
-$('#target').oninput = e => { S.target = parseInt(e.target.value.replace(/\D/g, ''), 10) || 0; save(); render(true); };
-document.querySelectorAll('#mode button').forEach(b => b.onclick = () => { S.mode = b.dataset.v; save(); render(true); });
-document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
-  const [t, m] = b.dataset.preset.split(','); S.target = +t; S.mode = m; save(); render(true);
-});
+$('#target').oninput = e => { clearTimeout(tgtTimer); const v = parseInt(e.target.value.replace(/\D/g, ''), 10) || 0; tgtTimer = setTimeout(() => op({ op: 'settings', target: v }), 600); };
+document.querySelectorAll('#mode button').forEach(b => b.onclick = () => op({ op: 'settings', mode: b.dataset.v }));
+document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => { const [t, m] = b.dataset.preset.split(','); op({ op: 'settings', target: +t, mode: m }); });
 
 render();
 </script>
