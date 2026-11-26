@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scorekeeper</title>
+<meta name="theme-color" content="#0d1210">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Scorekeeper">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  :root{
+    --bg:#0d1210; --felt:#14201b; --card:#1b2a24; --line:rgba(255,255,255,.08);
+    --ink:#f3efe4; --muted:#9aa8a0; --gold:#e9c46a; --red:#e76f51; --green:#5cc8a1;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  body{padding:env(safe-area-inset-top) 0 calc(24px + env(safe-area-inset-bottom))}
+  .wrap{max-width:720px;margin:0 auto;padding:16px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px}
+  h1{font:800 26px/1 Georgia,serif;margin:0;letter-spacing:-.01em}
+  h1 span{color:var(--gold)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:22px 0 10px;font-weight:700}
+  button{font:inherit;color:inherit;border:0;cursor:pointer}
+  .btn{background:var(--card);border:1px solid var(--line);padding:10px 14px;border-radius:12px;font-weight:600}
+  .btn.primary{background:var(--gold);color:#1a1405;border-color:transparent}
+  .btn.danger{color:var(--red)}
+  .btn:active{transform:scale(.97)}
+  .icon{background:none;padding:6px 8px;color:var(--muted);font-size:18px;border-radius:8px}
+  input{font:inherit;color:var(--ink);background:var(--felt);border:1px solid var(--line);border-radius:12px;padding:12px;width:100%;outline:none}
+  input:focus{border-color:var(--gold)}
+  .row{display:flex;gap:8px;align-items:center}
+  .muted{color:var(--muted)}
+  .hidden{display:none!important}
+
+  /* settings */
+  .settings{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:var(--felt);border:1px solid var(--line);border-radius:16px;padding:12px}
+  .settings label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+  .seg{display:flex;background:var(--bg);border-radius:12px;padding:3px}
+  .seg button{flex:1;padding:9px 6px;border-radius:9px;background:none;color:var(--muted);font-weight:600;font-size:14px}
+  .seg button.on{background:var(--card);color:var(--ink)}
+
+  /* scoreboard */
+  .board{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .p{position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
+  .p.lead{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+  .p .name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:26px}
+  .p .total{font:800 38px/1.1 Georgia,serif;margin-top:4px;font-variant-numeric:tabular-nums}
+  .p .sub{font-size:12px;color:var(--muted)}
+  .p .crown{position:absolute;top:10px;right:10px;font-size:16px}
+  .p .rm{position:absolute;bottom:6px;right:4px}
+  .bar{height:4px;background:var(--bg);border-radius:4px;margin-top:8px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--green);border-radius:4px}
+
+  /* round entry */
+  .entry{background:var(--felt);border:1px solid var(--line);border-radius:16px;padding:12px}
+  .erow{display:grid;grid-template-columns:1fr 52px 120px;gap:8px;align-items:center;margin-bottom:8px}
+  .erow .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .erow input{text-align:right;font-size:20px;font-weight:700;padding:10px 12px;font-variant-numeric:tabular-nums}
+  .sign{height:46px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-size:20px;font-weight:800;color:var(--green)}
+  .sign.neg{color:var(--red)}
+
+  /* history */
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px}
+  table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+  th,td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left;color:var(--muted);position:sticky;left:0;background:var(--bg)}
+  thead th{font-size:13px;color:var(--muted);font-weight:600}
+  tbody tr{cursor:pointer}
+  tbody tr:active td{background:var(--felt)}
+  tbody tr.editing td{background:rgba(233,196,106,.12)}
+  tfoot td{font-weight:800;border-bottom:0;background:var(--felt)}
+  tfoot td:first-child{background:var(--felt);color:var(--ink)}
+  .neg{color:var(--red)}
+
+  .banner{background:linear-gradient(120deg,var(--gold),#f4a261);color:#1a1405;border-radius:16px;padding:14px 16px;font-weight:700;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .banner .big{font:800 22px/1.1 Georgia,serif}
+  .empty{text-align:center;color:var(--muted);padding:22px;border:1px dashed var(--line);border-radius:16px}
+  .footer{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+  .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--card);border:1px solid var(--line);padding:10px 14px;border-radius:12px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:5}
+  .toast button{color:var(--gold);background:none;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Score<span>keeper</span></h1>
+    <button class="btn" id="settingsBtn">⚙︎ Game</button>
+  </header>
+
+  <div class="settings hidden" id="settings">
+    <div>
+      <label>Play to</label>
+      <input id="target" type="text" inputmode="numeric" placeholder="none">
+    </div>
+    <div>
+      <label>Winner has</label>
+      <div class="seg" id="mode">
+        <button data-v="high">Highest</button>
+        <button data-v="low">Lowest</button>
+      </div>
+    </div>
+    <div style="grid-column:1/-1" class="row">
+      <button class="btn" data-preset="500,high">Rummy 500</button>
+      <button class="btn" data-preset="100,high">Gin (100)</button>
+      <button class="btn" data-preset="0,low">Low wins</button>
+    </div>
+  </div>
+
+  <div id="bannerSlot"></div>
+
+  <h2>Players</h2>
+  <div class="board" id="board"></div>
+  <form class="row" id="addForm" style="margin-top:10px">
+    <input id="newName" placeholder="Add player name" autocomplete="off" enterkeyhint="done">
+    <button class="btn primary" type="submit">Add</button>
+  </form>
+
+  <div id="entrySection" class="hidden">
+    <h2 id="entryTitle">Round 1</h2>
+    <form class="entry" id="entryForm">
+      <div id="entryRows"></div>
+      <div class="row" style="margin-top:4px">
+        <button class="btn hidden" type="button" id="cancelEdit">Cancel</button>
+        <button class="btn primary" type="submit" style="flex:1" id="saveRound">Save round</button>
+      </div>
+    </form>
+  </div>
+
+  <h2>Rounds</h2>
+  <div id="history"></div>
+
+  <div class="footer">
+    <button class="btn" id="newGame">New game · same players</button>
+    <button class="btn danger" id="resetAll">Clear everything</button>
+  </div>
+</div>
+<div class="toast hidden" id="toast"><span id="toastMsg"></span><button id="toastUndo">Undo</button></div>
+
+<script>
+const KEY = 'scorekeeper-v1';
+const $ = s => document.querySelector(s);
+let S = load() || { players: [], rounds: [], target: 500, mode: 'high' };
+let editing = null;      // index of round being edited
+let undoState = null, toastTimer = null;
+
+function load(){ try { return JSON.parse(localStorage.getItem(KEY)); } catch(e){ return null; } }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+const uid = () => Math.random().toString(36).slice(2, 9);
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const total = id => S.rounds.reduce((a, r) => a + (r[id] || 0), 0);
+
+function snapshot(msg){
+  undoState = JSON.stringify(S);
+  $('#toastMsg').textContent = msg;
+  $('#toast').classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('#toast').classList.add('hidden'), 6000);
+}
+$('#toastUndo').onclick = () => {
+  if (undoState) { S = JSON.parse(undoState); undoState = null; editing = null; save(); render(); }
+  $('#toast').classList.add('hidden');
+};
+
+function leaders(){
+  if (!S.players.length || !S.rounds.length) return [];
+  const t = S.players.map(p => total(p.id));
+  const best = S.mode === 'high' ? Math.max(...t) : Math.min(...t);
+  return S.players.filter((p, i) => t[i] === best).map(p => p.id);
+}
+function winner(){
+  const tgt = S.target;
+  if (!tgt || !S.rounds.length) return null;
+  const hit = S.players.some(p => total(p.id) >= tgt);
+  if (!hit) return null;
+  // High mode: first to target wins (leader). Low mode: someone busted the limit; lowest wins.
+  return leaders();
+}
+
+function render(keepEntry){
+  // settings
+  if (document.activeElement !== $('#target')) $('#target').value = S.target || '';
+  document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.v === S.mode));
+
+  // banner
+  const w = winner();
+  $('#bannerSlot').innerHTML = w && w.length ? `<div class="banner"><div><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase">Game over</div><div class="big">🏆 ${w.map(id => esc(S.players.find(p => p.id === id).name)).join(' & ')} win${w.length > 1 ? '' : 's'}</div></div><button class="btn" style="background:#1a1405;color:var(--gold)" onclick="newGame()">Play again</button></div>` : '';
+
+  // board
+  const lead = leaders();
+  const max = Math.max(1, S.target || 0, ...S.players.map(p => Math.abs(total(p.id))));
+  $('#board').innerHTML = S.players.length ? S.players.map(p => {
+    const t = total(p.id), last = S.rounds.length ? (S.rounds[S.rounds.length - 1][p.id] || 0) : null;
+    const pct = Math.max(0, Math.min(100, t / max * 100));
+    return `<div class="p ${lead.includes(p.id) ? 'lead' : ''}">
+      ${lead.includes(p.id) ? '<span class="crown">👑</span>' : ''}
+      <div class="name" onclick="renamePlayer('${p.id}')">${esc(p.name)}</div>
+      <div class="total ${t < 0 ? 'neg' : ''}">${t}</div>
+      <div class="sub">${last === null ? '&nbsp;' : 'last ' + (last > 0 ? '+' : '') + last}${S.target && S.mode === 'high' ? ` · ${Math.max(0, S.target - t)} to go` : ''}</div>
+      ${S.target ? `<div class="bar"><i style="width:${pct}%;${S.mode === 'low' ? 'background:var(--red)' : ''}"></i></div>` : ''}
+      <button class="icon rm" title="Remove" onclick="removePlayer('${p.id}')">×</button>
+    </div>`;
+  }).join('') : '<div class="empty" style="grid-column:1/-1">Add players to start.</div>';
+
+  // entry (skipped on settings changes so half-typed scores survive)
+  if (!keepEntry) renderEntry();
+  renderHistory();
+}
+
+function renderEntry(){
+  $('#entrySection').classList.toggle('hidden', !S.players.length);
+  const r = editing !== null ? S.rounds[editing] : null;
+  $('#entryTitle').textContent = r ? `Editing round ${editing + 1}` : `Round ${S.rounds.length + 1}`;
+  $('#saveRound').textContent = r ? 'Update round' : 'Save round';
+  $('#cancelEdit').classList.toggle('hidden', !r);
+  $('#entryRows').innerHTML = S.players.map(p => {
+    const v = r ? (r[p.id] || 0) : null;
+    const neg = v !== null && v < 0;
+    return `<div class="erow">
+      <div class="nm">${esc(p.name)}</div>
+      <button type="button" class="sign ${neg ? 'neg' : ''}" data-id="${p.id}" aria-label="Toggle sign">${neg ? '−' : '+'}</button>
+      <input type="text" inputmode="numeric" pattern="[0-9]*" data-id="${p.id}" placeholder="0" value="${v !== null && v !== 0 ? Math.abs(v) : ''}" enterkeyhint="next">
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.sign').forEach(b => b.onclick = () => {
+    b.classList.toggle('neg'); b.textContent = b.classList.contains('neg') ? '−' : '+';
+  });
+  // typing a leading "-" (desktop/Android) flips the sign button
+  document.querySelectorAll('#entryRows input').forEach((inp, i, all) => {
+    inp.oninput = () => {
+      if (inp.value.includes('-')) {
+        inp.value = inp.value.replace(/-/g, '');
+        const b = document.querySelector(`.sign[data-id="${inp.dataset.id}"]`); b.click();
+      }
+      inp.value = inp.value.replace(/[^0-9]/g, '');
+    };
+    inp.onkeydown = e => { if (e.key === 'Enter' && i < all.length - 1) { e.preventDefault(); all[i + 1].focus(); } };
+  });
+
+}
+
+function renderHistory(){
+  if (!S.rounds.length) { $('#history').innerHTML = '<div class="empty">No rounds yet.</div>'; return; }
+  const head = `<tr><th>#</th>${S.players.map(p => `<th>${esc(p.name)}</th>`).join('')}<th></th></tr>`;
+  const rows = S.rounds.map((r, i) => `<tr class="${editing === i ? 'editing' : ''}" onclick="editRound(${i})"><td>${i + 1}</td>${S.players.map(p => { const v = r[p.id] || 0; return `<td class="${v < 0 ? 'neg' : ''}">${v}</td>`; }).join('')}<td><button class="icon" onclick="event.stopPropagation();deleteRound(${i})" title="Delete">🗑</button></td></tr>`).join('');
+  const foot = `<tr><td>Total</td>${S.players.map(p => `<td class="${total(p.id) < 0 ? 'neg' : ''}">${total(p.id)}</td>`).join('')}<td></td></tr>`;
+  $('#history').innerHTML = `<div class="tablewrap"><table><thead>${head}</thead><tbody>${rows}</tbody><tfoot>${foot}</tfoot></table></div><p class="muted" style="font-size:13px;margin:8px 2px">Tap a round to fix a score.</p>`;
+}
+
+// players
+$('#addForm').onsubmit = e => {
+  e.preventDefault();
+  const n = $('#newName').value.trim();
+  if (!n) return;
+  S.players.push({ id: uid(), name: n });
+  $('#newName').value = '';
+  save(); render(); $('#newName').focus();
+};
+function renamePlayer(id){
+  const p = S.players.find(x => x.id === id);
+  const n = prompt('Rename player', p.name);
+  if (n && n.trim()) { p.name = n.trim(); save(); render(); }
+}
+function removePlayer(id){
+  const p = S.players.find(x => x.id === id);
+  snapshot(`Removed ${p.name}`);
+  S.players = S.players.filter(x => x.id !== id);
+  S.rounds.forEach(r => delete r[id]);
+  S.rounds = S.rounds.filter(r => Object.keys(r).length);
+  editing = null; save(); render();
+}
+
+// rounds
+$('#entryForm').onsubmit = e => {
+  e.preventDefault();
+  const r = {};
+  let any = false;
+  S.players.forEach(p => {
+    const v = parseInt(document.querySelector(`#entryRows input[data-id="${p.id}"]`).value, 10) || 0;
+    const neg = document.querySelector(`.sign[data-id="${p.id}"]`).classList.contains('neg');
+    r[p.id] = neg ? -v : v;
+    if (v) any = true;
+  });
+  if (!any && editing === null && !confirm('Everyone scored 0 this round. Save anyway?')) return;
+  if (editing !== null) { S.rounds[editing] = r; editing = null; }
+  else S.rounds.push(r);
+  save(); render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+function editRound(i){ editing = i; render(); $('#entrySection').scrollIntoView({ behavior: 'smooth' }); }
+$('#cancelEdit').onclick = () => { editing = null; render(); };
+function deleteRound(i){
+  snapshot(`Deleted round ${i + 1}`);
+  S.rounds.splice(i, 1); editing = null; save(); render();
+}
+
+// game
+function newGame(){
+  if (S.rounds.length) snapshot('Started a new game');
+  S.rounds = []; editing = null; save(); render();
+}
+$('#newGame').onclick = newGame;
+$('#resetAll').onclick = () => {
+  snapshot('Cleared players and scores');
+  S.players = []; S.rounds = []; editing = null; save(); render();
+};
+
+// settings
+$('#settingsBtn').onclick = () => $('#settings').classList.toggle('hidden');
+$('#target').oninput = e => { S.target = parseInt(e.target.value.replace(/\D/g, ''), 10) || 0; save(); render(true); };
+document.querySelectorAll('#mode button').forEach(b => b.onclick = () => { S.mode = b.dataset.v; save(); render(true); });
+document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
+  const [t, m] = b.dataset.preset.split(','); S.target = +t; S.mode = m; save(); render(true);
+});
+
+render();
+</script>
+</body>
+</html>
