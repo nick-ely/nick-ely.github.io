@@ -309,10 +309,17 @@ function render(){
 
   const lead = leaders();
   const max = Math.max(1, S.target || 0, ...S.players.map(p => Math.abs(total(p.id))));
-  $('#board').innerHTML = S.players.length ? S.players.map(p => {
+  // leader first: highest total in "high" mode, lowest in "low" mode; ties keep join order
+  const ranked = S.players.map((p, i) => ({ p, i, t: total(p.id) }))
+    .sort((a, b) => (S.mode === 'low' ? a.t - b.t : b.t - a.t) || a.i - b.i);
+  const place = n => n + (['th','st','nd','rd'][(n % 100 - 20) % 10] || ['th','st','nd','rd'][n % 100] || 'th');
+  const before = {}; document.querySelectorAll('#board .p').forEach(el => before[el.dataset.id] = el.getBoundingClientRect().top);
+  $('#board').innerHTML = S.players.length ? ranked.map(({ p }, k) => {
     const t = total(p.id), last = S.rounds.length && (p.id in S.rounds[S.rounds.length - 1]) ? S.rounds[S.rounds.length - 1][p.id] : null;
     const pct = Math.max(0, Math.min(100, t / max * 100));
-    return `<div class="p ${lead.includes(p.id) ? 'lead' : ''}">
+    const rk = S.rounds.length ? ranked.findIndex(x => x.t === ranked[k].t) + 1 : 0;
+    return `<div class="p ${lead.includes(p.id) ? 'lead' : ''}" data-id="${esc(p.id)}">
+      ${rk ? `<div class="sub" style="font-weight:700;letter-spacing:.08em">${place(rk)}</div>` : ''}
       ${lead.includes(p.id) ? '<span class="crown">👑</span>' : ''}
       <div class="name" data-rename="${esc(p.id)}">${esc(p.name)}</div>
       <div class="total ${t < 0 ? 'neg' : ''}">${t}</div>
@@ -321,6 +328,12 @@ function render(){
       <button class="icon rm" title="Remove" data-remove="${esc(p.id)}">×</button>
     </div>`;
   }).join('') : '<div class="empty" style="grid-column:1/-1">Add players to start.</div>';
+  // slide cards to their new spots
+  document.querySelectorAll('#board .p').forEach(el => {
+    const was = before[el.dataset.id]; if (was === undefined) return;
+    const dy = was - el.getBoundingClientRect().top; if (!dy) return;
+    el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 400, easing: 'cubic-bezier(.2,.7,.2,1)' });
+  });
 
   renderEntry();
   renderHistory();
