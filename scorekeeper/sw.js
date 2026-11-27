@@ -1,5 +1,5 @@
 // Scorekeeper: lets the installed app open with no signal. Scores sync through Google, which is never cached here.
-const CACHE = 'scorekeeper-v1';
+const CACHE = 'scorekeeper-v2';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './favicon-32.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x.startsWith('scorekeeper-') && x !== CACHE).map(x => caches.delete(x))))); self.clients.claim(); });

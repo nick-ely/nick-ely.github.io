@@ -209,10 +209,12 @@ const IKEY = 'scorekeeper-index';
 
 // game id from ?g= so a shared link opens the same game
 const params = new URLSearchParams(location.search);
+const fromLink = !!params.get('g');
 let G = (params.get('g') || '').replace(/[^a-z0-9]/gi, '').slice(0, 20);
+let startedHere = false;
 if (!G) {
   try { G = localStorage.getItem('scorekeeper-last-game') || ''; } catch(e){}
-  if (!G) G = uid();
+  if (!G) { G = uid(); startedHere = true; }
   params.set('g', G); history.replaceState(null, '', '?' + params);
 }
 try { localStorage.setItem('scorekeeper-last-game', G); } catch(e){}
@@ -233,7 +235,9 @@ let S = (() => {
   } catch(e){}
   return fresh();
 })();
-if (S.players.length) saveLocal();
+if (startedHere) markMine(G);
+else if (fromLink) { const idx = getIndex(); if (!idx[G]) { idx[G] = { players: [], rounds: 0, mine: false }; setIndex(idx); } }
+saveLocal();
 let editing = null, undoState = null, toastTimer = null, inflight = 0;
 
 // ---- shared game logic (identical copy lives in apps-script.gs) ----
@@ -300,12 +304,14 @@ function summary(s){
   return { name: s.name || '', updated: s.updated || new Date().toISOString(), rounds: (s.rounds || []).length, mode: s.mode,
     players: (s.players || []).map(p => ({ name: p.name, total: (s.rounds || []).reduce((a, r) => a + (r[p.id] || 0), 0) })) };
 }
+// this phone's game list: games it started ("mine") and games opened from a shared link
+function getIndex(){ try { return JSON.parse(localStorage.getItem(IKEY) || '{}'); } catch(e){ return {}; } }
+function setIndex(idx){ try { localStorage.setItem(IKEY, JSON.stringify(idx)); } catch(e){} }
+function markMine(id){ const idx = getIndex(); idx[id] = Object.assign(idx[id] || { players: [], rounds: 0 }, { mine: true }); setIndex(idx); }
 function saveLocal(){
-  try {
-    localStorage.setItem(LKEY, JSON.stringify(S));
-    const idx = JSON.parse(localStorage.getItem(IKEY) || '{}');
-    if (S.players.length || S.rounds.length) { idx[G] = summary(S); localStorage.setItem(IKEY, JSON.stringify(idx)); }
-  } catch(e){}
+  try { localStorage.setItem(LKEY, JSON.stringify(S)); } catch(e){}
+  const idx = getIndex();
+  if (idx[G] || S.players.length || S.rounds.length) { idx[G] = Object.assign({}, idx[G], summary(S)); setIndex(idx); }
 }
 
 function op(o){
@@ -314,7 +320,7 @@ function op(o){
   inflight++; setStatus('saving', 'Saving…');
   fetch(SHEET_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ g: G }, o)) })
     .then(r => r.json())
-    .then(s => { inflight--; if (!inflight) { S = s; saveLocal(); render(); } setStatus('live', 'Live · shared'); })
+    .then(s => { inflight--; if (!s.name && S.name) s.name = S.name; if (!inflight) { S = s; saveLocal(); render(); } setStatus('live', 'Live · shared'); })
     .catch(() => { inflight--; setStatus('off', 'Not saved — check signal'); });
 }
 
@@ -503,6 +509,7 @@ function newGame(){
   const s = Object.assign(fresh(), { players: S.players.map(p => ({ id: p.id, name: p.name })), target: S.target, mode: S.mode });
   const go = () => { location.href = gameUrl(id); };
   try { localStorage.setItem('scorekeeper-v2-' + id, JSON.stringify(s)); } catch(e){}
+  markMine(id);
   if (!SHEET_URL) return go();
   setStatus('saving', 'Creating game…');
   fetch(SHEET_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ g: id, op: 'restore', state: s }) })
@@ -534,25 +541,33 @@ function renderGames(list){
     const who = x.players.map(p => p.name).join(', ') || 'No players yet';
     return `<div class="gitem ${x.g === G ? 'cur' : ''}" data-open="${esc(x.g)}">
       <div class="gi"><b>${esc(x.name || 'Untitled game')}${x.g === G ? ' <span class="muted">· open now</span>' : ''}</b>
-      <small>${esc(who)}</small>
+      <small>${x.mine === false ? 'Shared with you · ' : ''}${esc(who)}</small>
       <small>${x.rounds} round${x.rounds === 1 ? '' : 's'}${best && x.rounds ? ' · ' + esc(best.name) + ' leads with ' + best.total : ''} · ${esc(fmtWhen(x.updated))}</small></div>
-      ${x.g === G ? '' : `<button class="icon" data-delgame="${esc(x.g)}" title="Delete game">🗑</button>`}
+      ${x.g === G ? '' : x.mine !== false
+        ? `<button class="icon" data-delgame="${esc(x.g)}" title="Delete game for everyone">🗑</button>`
+        : `<button class="icon" data-forget="${esc(x.g)}" title="Remove from my list">✕</button>`}
     </div>`;
   }).join('');
 }
 function loadGames(){
-  if (!SHEET_URL) {
-    let idx = {}; try { idx = JSON.parse(localStorage.getItem(IKEY) || '{}'); } catch(e){}
-    renderGames(Object.keys(idx).map(g => Object.assign({ g }, idx[g])).sort((a, b) => a.updated < b.updated ? 1 : -1));
-    return;
-  }
-  $('#gameList').innerHTML = '<div class="muted">Loading…</div>';
-  fetch(SHEET_URL + '?list=1&t=' + Date.now()).then(r => r.json()).then(renderGames)
-    .catch(() => { $('#gameList').innerHTML = '<div class="muted">Couldn\'t load the game list — check signal.</div>'; });
+  const idx = getIndex();
+  const local = Object.keys(idx).map(g => Object.assign({ g }, idx[g])).sort((a, b) => (a.updated || '') < (b.updated || '') ? 1 : -1);
+  if (!SHEET_URL) { renderGames(local); return; }
+  renderGames(local);   // show what this phone knows right away, then refresh from the sheet
+  const ids = Object.keys(idx).concat(G).filter((v, i, a) => a.indexOf(v) === i);
+  fetch(SHEET_URL + '?list=1&ids=' + encodeURIComponent(ids.join(',')) + '&t=' + Date.now()).then(r => r.json()).then(list => {
+    const seen = {};
+    list.forEach(x => { seen[x.g] = 1; x.mine = idx[x.g] && idx[x.g].mine === false ? false : true; });
+    // games deleted by their owner drop off this list
+    const fresh = getIndex(); Object.keys(fresh).forEach(g => { if (!seen[g] && g !== G) delete fresh[g]; }); setIndex(fresh);
+    renderGames(list);
+  }).catch(() => {});
 }
 $('#gamesBtn').onclick = () => { const el = $('#games'); el.classList.toggle('hidden'); if (!el.classList.contains('hidden')) loadGames(); };
 $('#newGameTop').onclick = () => newGame();
 $('#gameList').onclick = e => {
+  const fg = e.target.closest('[data-forget]');
+  if (fg) { const idx = getIndex(); delete idx[fg.dataset.forget]; setIndex(idx); try { localStorage.removeItem('scorekeeper-v2-' + fg.dataset.forget); } catch(err){} loadGames(); return; }
   const del = e.target.closest('[data-delgame]');
   if (del) {
     const g = del.dataset.delgame, name = del.closest('.gitem').querySelector('b').textContent;
