@@ -86,6 +86,14 @@
   td.miss{color:var(--muted)}
   .erow input.dirty{border-color:var(--gold)}
   .hdr-btns{display:flex;gap:8px;align-items:center}
+  .gname{font-size:14px;font-weight:600;margin-top:4px;cursor:pointer;color:var(--ink);background:none;padding:0;text-align:left}
+  .gname:after{content:" ✎";color:var(--muted);font-size:12px}
+  .games{background:var(--felt);border:1px solid var(--line);border-radius:16px;padding:12px}
+  .gitem{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;background:var(--card);border:1px solid var(--line);margin-bottom:8px;cursor:pointer}
+  .gitem.cur{border-color:var(--gold)}
+  .gitem .gi{flex:1;min-width:0}
+  .gitem b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gitem small{color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--card);border:1px solid var(--line);padding:10px 14px;border-radius:12px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:5}
   .toast button{color:var(--gold);background:none;font-weight:700}
 </style>
@@ -95,9 +103,11 @@
   <header>
     <div>
       <h1>Score<span>keeper</span></h1>
+      <button class="gname" id="gameName" title="Rename this game"></button>
       <div class="status" id="status"><i></i><span>This phone only</span></div>
     </div>
     <div class="hdr-btns">
+      <button class="btn" id="gamesBtn">Games</button>
       <button class="btn" id="shareBtn">Share</button>
       <button class="btn" id="settingsBtn">⚙︎</button>
     </div>
@@ -120,6 +130,14 @@
       <button class="btn" data-preset="100,high">Gin (100)</button>
       <button class="btn" data-preset="0,low">Low wins</button>
     </div>
+  </div>
+
+  <div class="games hidden" id="games">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <b>Saved games</b>
+      <button class="btn primary" id="newGameTop">+ New game</button>
+    </div>
+    <div id="gameList"><div class="muted">Loading…</div></div>
   </div>
 
   <div id="bannerSlot"></div>
@@ -162,7 +180,9 @@ const SHEET_URL = '';
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => Math.random().toString(36).slice(2, 9);
-const fresh = () => ({ players: [], rounds: [], target: 500, mode: 'high', v: 0 });
+const fresh = () => ({ players: [], rounds: [], target: 500, mode: 'high', v: 0, name: defaultName() });
+const defaultName = () => 'Game · ' + new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const IKEY = 'scorekeeper-index';
 
 // game id from ?g= so a shared link opens the same game
 const params = new URLSearchParams(location.search);
@@ -190,6 +210,7 @@ let S = (() => {
   } catch(e){}
   return fresh();
 })();
+if (S.players.length) saveLocal();
 let editing = null, undoState = null, toastTimer = null, inflight = 0;
 
 // ---- shared game logic (identical copy lives in apps-script.gs) ----
@@ -237,11 +258,13 @@ function applyOp(s, o) {
     case 'settings':
       if ('target' in o) s.target = Math.max(0, clean(o.target));
       if (o.mode === 'high' || o.mode === 'low') s.mode = o.mode;
+      if (typeof o.name === 'string' && o.name.trim()) s.name = o.name.trim().slice(0, 40);
       break;
     case 'restore':
       if (o.state) {
         s.players = o.state.players || []; s.rounds = o.state.rounds || [];
         s.target = o.state.target || 0; s.mode = o.state.mode === 'low' ? 'low' : 'high';
+        if (o.state.name) s.name = String(o.state.name).slice(0, 40);
       }
       break;
   }
@@ -250,10 +273,20 @@ function applyOp(s, o) {
 
 // ---- sync ----
 function setStatus(cls, txt){ const el = $('#status'); el.className = 'status ' + cls; el.lastElementChild.textContent = txt; }
-function saveLocal(){ try { localStorage.setItem(LKEY, JSON.stringify(S)); } catch(e){} }
+function summary(s){
+  return { name: s.name || '', updated: s.updated || new Date().toISOString(), rounds: (s.rounds || []).length, mode: s.mode,
+    players: (s.players || []).map(p => ({ name: p.name, total: (s.rounds || []).reduce((a, r) => a + (r[p.id] || 0), 0) })) };
+}
+function saveLocal(){
+  try {
+    localStorage.setItem(LKEY, JSON.stringify(S));
+    const idx = JSON.parse(localStorage.getItem(IKEY) || '{}');
+    if (S.players.length || S.rounds.length) { idx[G] = summary(S); localStorage.setItem(IKEY, JSON.stringify(idx)); }
+  } catch(e){}
+}
 
 function op(o){
-  applyOp(S, o); saveLocal(); render();
+  applyOp(S, o); S.updated = new Date().toISOString(); saveLocal(); render();
   if (!SHEET_URL) return;
   inflight++; setStatus('saving', 'Saving…');
   fetch(SHEET_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ g: G }, o)) })
@@ -300,6 +333,8 @@ function winner(){
 
 // ---- render ----
 function render(){
+  $('#gameName').textContent = S.name || 'Untitled game';
+  document.title = (S.name ? S.name + ' · ' : '') + 'Scorekeeper';
   if (document.activeElement !== $('#target')) $('#target').value = S.target || '';
   document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.v === S.mode));
 
@@ -438,10 +473,17 @@ $('#closeRound').onclick = () => {
   const missing = S.players.filter(p => !(p.id in S.rounds[i])).map(p => p.name);
   if (confirm(`Give ${missing.join(', ')} a 0 and finish round ${i + 1}?`)) op({ op: 'closeRound', index: i });
 };
+function gameUrl(id){ return location.pathname + '?g=' + id; }
 function newGame(){
-  if (S.rounds.length && !confirm('Start a new game with the same players?')) return;
-  if (S.rounds.length) snapshot('Started a new game');
-  editing = null; op({ op: 'newGame' });
+  // every game is already saved; this starts a fresh one with the same players and settings
+  const id = uid();
+  const s = Object.assign(fresh(), { players: S.players.map(p => ({ id: p.id, name: p.name })), target: S.target, mode: S.mode });
+  const go = () => { location.href = gameUrl(id); };
+  try { localStorage.setItem('scorekeeper-v2-' + id, JSON.stringify(s)); } catch(e){}
+  if (!SHEET_URL) return go();
+  setStatus('saving', 'Creating game…');
+  fetch(SHEET_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ g: id, op: 'restore', state: s }) })
+    .then(go, go);
 }
 $('#newGame').onclick = newGame;
 $('#resetAll').onclick = () => {
@@ -456,6 +498,54 @@ $('#shareBtn').onclick = async () => {
 };
 
 let tgtTimer;
+function fmtWhen(iso){
+  if (!iso) return '';
+  const d = new Date(iso), now = new Date();
+  return d.toDateString() === now.toDateString() ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+function renderGames(list){
+  list = list.filter(x => x.g === G || x.players.length);
+  if (!list.some(x => x.g === G)) list.unshift(Object.assign({ g: G }, summary(S)));
+  $('#gameList').innerHTML = list.map(x => {
+    const best = x.players.length ? x.players.reduce((a, b) => (x.mode === 'low' ? b.total < a.total : b.total > a.total) ? b : a) : null;
+    const who = x.players.map(p => p.name).join(', ') || 'No players yet';
+    return `<div class="gitem ${x.g === G ? 'cur' : ''}" data-open="${esc(x.g)}">
+      <div class="gi"><b>${esc(x.name || 'Untitled game')}${x.g === G ? ' <span class="muted">· open now</span>' : ''}</b>
+      <small>${esc(who)}</small>
+      <small>${x.rounds} round${x.rounds === 1 ? '' : 's'}${best && x.rounds ? ' · ' + esc(best.name) + ' leads with ' + best.total : ''} · ${esc(fmtWhen(x.updated))}</small></div>
+      ${x.g === G ? '' : `<button class="icon" data-delgame="${esc(x.g)}" title="Delete game">🗑</button>`}
+    </div>`;
+  }).join('');
+}
+function loadGames(){
+  if (!SHEET_URL) {
+    let idx = {}; try { idx = JSON.parse(localStorage.getItem(IKEY) || '{}'); } catch(e){}
+    renderGames(Object.keys(idx).map(g => Object.assign({ g }, idx[g])).sort((a, b) => a.updated < b.updated ? 1 : -1));
+    return;
+  }
+  $('#gameList').innerHTML = '<div class="muted">Loading…</div>';
+  fetch(SHEET_URL + '?list=1&t=' + Date.now()).then(r => r.json()).then(renderGames)
+    .catch(() => { $('#gameList').innerHTML = '<div class="muted">Couldn\'t load the game list — check signal.</div>'; });
+}
+$('#gamesBtn').onclick = () => { const el = $('#games'); el.classList.toggle('hidden'); if (!el.classList.contains('hidden')) loadGames(); };
+$('#newGameTop').onclick = () => newGame();
+$('#gameList').onclick = e => {
+  const del = e.target.closest('[data-delgame]');
+  if (del) {
+    const g = del.dataset.delgame, name = del.closest('.gitem').querySelector('b').textContent;
+    if (!confirm(`Delete "${name}" for everyone? This can't be undone.`)) return;
+    try { localStorage.removeItem('scorekeeper-v2-' + g); const idx = JSON.parse(localStorage.getItem(IKEY) || '{}'); delete idx[g]; localStorage.setItem(IKEY, JSON.stringify(idx)); } catch(err){}
+    if (SHEET_URL) fetch(SHEET_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ g, op: 'deleteGame' }) }).then(loadGames, loadGames);
+    else loadGames();
+    return;
+  }
+  const o = e.target.closest('[data-open]');
+  if (o && o.dataset.open !== G) location.href = gameUrl(o.dataset.open);
+};
+$('#gameName').onclick = () => {
+  const n = prompt('Name this game', S.name || '');
+  if (n && n.trim()) op({ op: 'settings', name: n.trim() });
+};
 $('#settingsBtn').onclick = () => $('#settings').classList.toggle('hidden');
 $('#target').oninput = e => { clearTimeout(tgtTimer); const v = parseInt(e.target.value.replace(/\D/g, ''), 10) || 0; tgtTimer = setTimeout(() => op({ op: 'settings', target: v }), 600); };
 document.querySelectorAll('#mode button').forEach(b => b.onclick = () => op({ op: 'settings', mode: b.dataset.v }));

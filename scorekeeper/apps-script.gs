@@ -7,12 +7,15 @@
  */
 
 function doGet(e) {
-  return out_(getState_(gid_(e && e.parameter && e.parameter.g)));
+  var p = (e && e.parameter) || {};
+  if (p.list) return out_(listGames_());
+  return out_(getState_(gid_(p.g)));
 }
 
 function doPost(e) {
   var body = JSON.parse(e.postData.contents);
   var g = gid_(body.g);
+  if (body.op === 'deleteGame') return out_(deleteGame_(g));
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -72,11 +75,13 @@ function applyOp(s, o) {
     case 'settings':
       if ('target' in o) s.target = Math.max(0, clean(o.target));
       if (o.mode === 'high' || o.mode === 'low') s.mode = o.mode;
+      if (typeof o.name === 'string' && o.name.trim()) s.name = o.name.trim().slice(0, 40);
       break;
     case 'restore':
       if (o.state) {
         s.players = o.state.players || []; s.rounds = o.state.rounds || [];
         s.target = o.state.target || 0; s.mode = o.state.mode === 'low' ? 'low' : 'high';
+        if (o.state.name) s.name = String(o.state.name).slice(0, 40);
       }
       break;
   }
@@ -108,6 +113,36 @@ function getState_(g) {
 function putState_(g, s) {
   var sh = stateSheet_(), row = findRow_(sh, g), json = JSON.stringify(s);
   if (row) sh.getRange(row, 2).setValue(json); else sh.appendRow([g, json]);
+}
+
+function listGames_() {
+  var sh = stateSheet_(), n = sh.getLastRow();
+  if (n < 2) return [];
+  return sh.getRange(2, 1, n - 1, 2).getValues().map(function (row) {
+    try {
+      var s = JSON.parse(row[1]);
+      return {
+        g: row[0], name: s.name || '', updated: s.updated || '', rounds: (s.rounds || []).length, mode: s.mode,
+        players: (s.players || []).map(function (p) {
+          return { name: p.name, total: (s.rounds || []).reduce(function (a, r) { return a + (r[p.id] || 0); }, 0) };
+        })
+      };
+    } catch (err) { return null; }
+  }).filter(function (x) { return x; }).sort(function (a, b) { return a.updated < b.updated ? 1 : -1; });
+}
+
+function deleteGame_(g) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sh = stateSheet_(), row = findRow_(sh, g);
+    if (row) sh.deleteRow(row);
+    var tab = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Game ' + g);
+    if (tab) SpreadsheetApp.getActiveSpreadsheet().deleteSheet(tab);
+    return { deleted: g };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function writeTab_(g, s) {
