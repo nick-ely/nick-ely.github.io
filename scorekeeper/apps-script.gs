@@ -8,7 +8,7 @@
 
 function doGet(e) {
   var p = (e && e.parameter) || {};
-  if (p.list) return out_(listGames_());
+  if (p.list) return out_(listGames_(String(p.ids || '').split(',')));
   return out_(getState_(gid_(p.g)));
 }
 
@@ -107,7 +107,8 @@ function findRow_(sh, g) {
 function getState_(g) {
   var sh = stateSheet_(), row = findRow_(sh, g);
   if (row) return JSON.parse(sh.getRange(row, 2).getValue());
-  return { players: [], rounds: [], target: 500, mode: 'high', v: 0 };
+  return { players: [], rounds: [], target: 500, mode: 'high', v: 0,
+    name: 'Game · ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MMM d') };
 }
 
 function putState_(g, s) {
@@ -115,10 +116,13 @@ function putState_(g, s) {
   if (row) sh.getRange(row, 2).setValue(json); else sh.appendRow([g, json]);
 }
 
-function listGames_() {
+// Only returns the games the caller already knows the ids of (its own and ones shared with it).
+function listGames_(ids) {
+  var want = {};
+  ids.forEach(function (id) { id = gid_(id); if (id) want[id] = true; });
   var sh = stateSheet_(), n = sh.getLastRow();
   if (n < 2) return [];
-  return sh.getRange(2, 1, n - 1, 2).getValues().map(function (row) {
+  return sh.getRange(2, 1, n - 1, 2).getValues().filter(function (row) { return want[row[0]]; }).map(function (row) {
     try {
       var s = JSON.parse(row[1]);
       return {
